@@ -96,6 +96,11 @@ function getAvailableSlots(dateString, serviceId) {
       citasDelDia.forEach(function(cita) {
         var citaStart = timeToMinutes(cita.Hora_Inicio);
         var citaEnd = timeToMinutes(cita.Hora_Fin);
+        
+        // Fallback robusto por si falta la columna Hora_Fin o está vacía en citas antiguas
+        if (citaEnd <= citaStart) {
+          citaEnd = citaStart + (parseInt(config.duracion_sesion_minutos) || 60);
+        }
 
         // Margen después de la cita existente
         var margen = margenConsulta;
