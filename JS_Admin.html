@@ -1,0 +1,1183 @@
+<script>
+/**
+ * JS_Admin.html — Lógica completa del panel de administración.
+ * Navegación SPA, CRUD de citas/horarios/servicios/clientes/ajustes.
+ */
+
+const admin = {
+  // ─── Estado ───
+  state: {
+    citas: [],
+    horarios: [],
+    excepciones: [],
+    servicios: [],
+    clientes: [],
+    config: {},
+    stats: {},
+    calendarWeekOffset: 0
+  },
+  currentClienteEmail: null,
+
+  // ─── Inicialización y Login ───
+  _token: null,
+  getToken: function() {
+    if (this._token) return this._token;
+    try { this._token = sessionStorage.getItem('adminToken'); } catch (e) { console.warn('sessionStorage in iframe blocked'); }
+    return this._token;
+  },
+  setToken: function(t) {
+    this._token = t;
+    try { sessionStorage.setItem('adminToken', t); } catch (e) {}
+  },
+  removeToken: function() {
+    this._token = null;
+    try { sessionStorage.removeItem('adminToken'); } catch (e) {}
+  },
+
+  init: function() {
+    var token = this.getToken();
+    if (!token) {
+      document.getElementById('login-screen').style.display = 'flex';
+      document.getElementById('app-wrapper').style.display = 'none';
+      return;
+    }
+
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-wrapper').style.display = 'flex';
+    app.showLoader('Cargando panel...');
+
+    // Cargar datos iniciales
+    Promise.all([
+      app.fetchData('getProximasCitas').catch(() => []),
+      app.fetchData('getEstadisticas').catch(() => ({})),
+      app.fetchData('getServicios').catch(() => [])
+    ]).then(([citas, stats, servicios]) => {
+      this.state.citas = citas || [];
+      this.state.stats = stats || {};
+      this.state.servicios = servicios || [];
+      this.renderDashboard();
+      this.populateServicioSelects();
+      app.hideLoader();
+    }).catch(err => {
+      console.error('Error inicializando admin:', err);
+      app.hideLoader();
+      app.showToast('Error al cargar datos. Verifica que la estructura de la hoja esté creada (Ajustes → Generar estructura).', 'error');
+    });
+  },
+
+  login: function() {
+    var pwd = document.getElementById('admin-password').value;
+    var errEl = document.getElementById('login-error');
+    if (!pwd) return;
+
+    errEl.style.display = 'none';
+    app.showLoader('Verificando...');
+
+    app.fetchData('loginAdmin', pwd).then(result => {
+      app.hideLoader();
+      if (result && result.success) {
+        this.setToken(result.token);
+        this.init();
+      } else {
+        errEl.style.display = 'block';
+        errEl.textContent = result.message || 'Contraseña incorrecta';
+      }
+    }).catch(err => {
+      app.hideLoader();
+      errEl.style.display = 'block';
+      errEl.textContent = 'Error de conexión';
+    });
+  },
+
+  logout: function() {
+    this.removeToken();
+    window.location.reload();
+  },
+
+  // ─── Menú Móvil ───
+  toggleMobileMenu: function() {
+    var sidebar = document.getElementById('admin-sidebar');
+    var overlay = document.querySelector('.sidebar-overlay');
+    if (sidebar) sidebar.classList.toggle('active');
+    if (overlay) overlay.classList.toggle('active');
+  },
+  
+  closeMobileMenu: function() {
+    var sidebar = document.getElementById('admin-sidebar');
+    var overlay = document.querySelector('.sidebar-overlay');
+    if (sidebar) sidebar.classList.remove('active');
+    if (overlay) overlay.classList.remove('active');
+  },
+
+  // ─── Navegación SPA ───
+  navigate: function(viewId, element) {
+    // Actualizar menú activo
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    if (element) element.classList.add('active');
+
+    // Ocultar todas las vistas
+    document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+
+    var targetView = document.getElementById('view-' + viewId);
+    if (targetView) {
+      targetView.classList.add('active');
+    }
+
+    // Actualizar título
+    var titleEl = document.getElementById('page-title');
+    var titles = {
+      'dashboard': '<i class="ri-dashboard-line"></i> Dashboard',
+      'citas': '<i class="ri-calendar-check-line"></i> Gestión de Citas',
+      'horarios': '<i class="ri-time-line"></i> Horarios Disponibles',
+      'servicios': '<i class="ri-stethoscope-line"></i> Servicios',
+      'clientes': '<i class="ri-user-heart-line"></i> Pacientes',
+      'ajustes': '<i class="ri-settings-3-line"></i> Ajustes del Sistema'
+    };
+    if (titleEl && titles[viewId]) {
+      titleEl.innerHTML = titles[viewId];
+    }
+
+    // Cerrar menú móvil si está abierto
+    this.closeMobileMenu();
+
+    // Cargar datos de la vista si es necesario
+    if (viewId === 'citas') this.loadCitas();
+    else if (viewId === 'horarios') this.loadHorarios();
+    else if (viewId === 'servicios') this.loadServicios();
+    else if (viewId === 'clientes') this.loadClientes();
+    else if (viewId === 'ajustes') this.loadAjustes();
+    else if (viewId === 'dashboard') this.refreshDashboard();
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // DASHBOARD
+  // ═══════════════════════════════════════════════════════════
+
+  renderDashboard: function() {
+    var s = this.state.stats;
+    document.getElementById('kpi-hoy').textContent = s.citasHoy || 0;
+    document.getElementById('kpi-semana').textContent = s.citasSemana || 0;
+    document.getElementById('kpi-pendientes').textContent = s.citasPendientes || 0;
+    document.getElementById('kpi-cancelaciones').textContent = s.cancelacionesMes || 0;
+
+    this.renderProximasCitas();
+  },
+
+  refreshDashboard: function() {
+    app.fetchData('getEstadisticas').then(stats => {
+      this.state.stats = stats || {};
+      this.renderDashboard();
+    }).catch(() => {});
+
+    app.fetchData('getCitasTodas').then(citas => {
+      this.state.todasCitas = citas || [];
+      var proximas = (citas || []).filter(c => c.Fecha >= app.dateToString(new Date()) && c.Estado === 'confirmada');
+      proximas.sort((a, b) => {
+        if (a.Fecha === b.Fecha) return a.Hora_Inicio > b.Hora_Inicio ? 1 : -1;
+        return a.Fecha > b.Fecha ? 1 : -1;
+      });
+      this.state.citas = proximas.slice(0, 10);
+      this.renderProximasCitas();
+      if (this.state.horarios && this.state.horarios.length > 0) {
+        this.renderWeeklyCalendar();
+      }
+    }).catch(() => {});
+
+    app.fetchData('getHorarios').then(horarios => {
+      this.state.horarios = horarios || [];
+      if (this.state.citas) {
+        this.renderWeeklyCalendar();
+      }
+    }).catch(() => {});
+  },
+
+  changeCalendarWeek: function(delta) {
+    if (delta === 0) {
+      this.state.calendarWeekOffset = 0;
+    } else {
+      this.state.calendarWeekOffset += delta;
+    }
+    this.renderWeeklyCalendar();
+  },
+
+  renderWeeklyCalendar: function() {
+    var grid = document.getElementById('weekly-calendar-grid');
+    var headerEl = document.getElementById('weekly-calendar-header');
+    if (!grid || !headerEl) return;
+
+    var hoy = new Date();
+    if (this.state.calendarWeekOffset !== 0) {
+      hoy.setDate(hoy.getDate() + (this.state.calendarWeekOffset * 7));
+    }
+    // Encontrar el lunes de esta semana
+    var diaSemana = hoy.getDay() || 7; 
+    var lunes = new Date(hoy);
+    lunes.setDate(hoy.getDate() - diaSemana + 1);
+    
+    var domingo = new Date(lunes);
+    domingo.setDate(lunes.getDate() + 6);
+
+    headerEl.textContent = 'Semana del ' + app.formatDateShort(lunes.toISOString().split('T')[0]) + ' al ' + app.formatDateShort(domingo.toISOString().split('T')[0]);
+
+    // Generar días de la semana
+    var diasNombres = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    var fechasSemana = [];
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(lunes);
+      d.setDate(lunes.getDate() + i);
+      fechasSemana.push({
+        dateObj: d,
+        dateStr: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'),
+        nombre: diasNombres[i]
+      });
+    }
+
+    var html = '<div class="cal-header">Hora</div>';
+    fechasSemana.forEach(d => {
+      html += '<div class="cal-header">' + d.nombre + '<br><span style="font-size:11px;font-weight:400">' + d.dateStr.split('-').reverse().join('/') + '</span></div>';
+    });
+
+    var minH = 24, maxH = 0;
+    if (this.state.horarios && this.state.horarios.length) {
+      this.state.horarios.forEach(h => {
+        if (String(h.Abierto).toLowerCase() === 'true') {
+          if (h.Hora_Inicio_1 && h.Hora_Inicio_1 !== '00:00') minH = Math.min(minH, parseInt(h.Hora_Inicio_1.split(':')[0]));
+          if (h.Hora_Fin_1 && h.Hora_Fin_1 !== '00:00') maxH = Math.max(maxH, parseInt(h.Hora_Fin_1.split(':')[0]));
+          if (h.Hora_Inicio_2 && h.Hora_Inicio_2 !== '00:00') minH = Math.min(minH, parseInt(h.Hora_Inicio_2.split(':')[0]));
+          if (h.Hora_Fin_2 && h.Hora_Fin_2 !== '00:00') maxH = Math.max(maxH, parseInt(h.Hora_Fin_2.split(':')[0]));
+        }
+      });
+    }
+
+    var inicioStr = fechasSemana[0].dateStr;
+    var finStr = fechasSemana[6].dateStr;
+    
+    var fuenteCitas = this.state.todasCitas || this.state.citas || [];
+    fuenteCitas.forEach(c => {
+      if (c.Fecha >= inicioStr && c.Fecha <= finStr && c.Estado !== 'cancelada') {
+         if (typeof c.Hora_Inicio === 'string' && c.Hora_Inicio.includes(':')) minH = Math.min(minH, parseInt(c.Hora_Inicio.split(':')[0]));
+         if (typeof c.Hora_Fin === 'string' && c.Hora_Fin.includes(':')) maxH = Math.max(maxH, parseInt(c.Hora_Fin.split(':')[0]));
+      }
+    });
+
+    if (minH === 24) minH = 8;
+    if (maxH === 0) maxH = 20;
+
+    var startHour = Math.max(0, minH - 1);
+    var endHour = Math.min(23, maxH + 1);
+
+    for (var h = startHour; h <= endHour; h++) {
+      var horaStr = String(h).padStart(2, '0') + ':00';
+      html += '<div class="time-label">' + horaStr + '</div>';
+
+      for (var i = 0; i < 7; i++) {
+        var diaInfo = fechasSemana[i];
+        var horarioDia = this.state.horarios.find(x => x.Dia === diaInfo.nombre) || { Abierto: false };
+        
+        var isAvailable = false;
+        if (String(horarioDia.Abierto).toLowerCase() === 'true') {
+          var checkHour = function(inicio, fin, hora) {
+            if (!inicio || !fin || inicio === '00:00' && fin === '00:00') return false;
+            return (hora >= inicio && hora < fin);
+          };
+          if (checkHour(horarioDia.Hora_Inicio_1, horarioDia.Hora_Fin_1, horaStr) || 
+              checkHour(horarioDia.Hora_Inicio_2, horarioDia.Hora_Fin_2, horaStr)) {
+            isAvailable = true;
+          }
+        }
+
+        var classes = 'time-slot';
+        if (!isAvailable) classes += ' slot-unavailable';
+
+        var cellHtml = '<div class="' + classes + '">';
+
+        // Buscar citas en esta hora
+        var fuenteCitas = this.state.todasCitas || this.state.citas || [];
+        var citasHora = fuenteCitas.filter(c => {
+          var hStr = '';
+          if (c.Hora_Inicio) {
+            if (typeof c.Hora_Inicio === 'string' && c.Hora_Inicio.includes('T')) {
+              var d = new Date(c.Hora_Inicio);
+              if (!isNaN(d)) hStr = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+            } else if (typeof c.Hora_Inicio === 'object' && c.Hora_Inicio.getHours) {
+              hStr = String(c.Hora_Inicio.getHours()).padStart(2, '0') + ':' + String(c.Hora_Inicio.getMinutes()).padStart(2, '0');
+            } else {
+              hStr = String(c.Hora_Inicio);
+            }
+          }
+          c._parsedHoraInicio = hStr;
+          return c.Fecha === diaInfo.dateStr && hStr && hStr.startsWith(String(h).padStart(2, '0') + ':') && c.Estado !== 'cancelada';
+        });
+
+        citasHora.forEach(c => {
+          var hInicioStr = c._parsedHoraInicio || '00:00';
+          var mInicio = parseInt(hInicioStr.split(':')[1]) || 0;
+          var hInicio = parseInt(hInicioStr.split(':')[0]) || 0;
+          var topPercent = (mInicio / 60) * 100;
+          
+          var duracionMin = 60;
+          if (c.Hora_Fin) {
+            var hFinStr = '';
+            if (typeof c.Hora_Fin === 'string' && c.Hora_Fin.includes('T')) {
+              var dFin = new Date(c.Hora_Fin);
+              if (!isNaN(dFin)) hFinStr = String(dFin.getHours()).padStart(2, '0') + ':' + String(dFin.getMinutes()).padStart(2, '0');
+            } else if (typeof c.Hora_Fin === 'object' && c.Hora_Fin.getHours) {
+              hFinStr = String(c.Hora_Fin.getHours()).padStart(2, '0') + ':' + String(c.Hora_Fin.getMinutes()).padStart(2, '0');
+            } else {
+              hFinStr = String(c.Hora_Fin);
+            }
+            if (hFinStr.includes(':')) {
+              var hFin = parseInt(hFinStr.split(':')[0]) || 0;
+              var mFin = parseInt(hFinStr.split(':')[1]) || 0;
+              duracionMin = (hFin * 60 + mFin) - (hInicio * 60 + mInicio);
+            }
+          }
+          if (duracionMin < 30) duracionMin = 30;
+          var heightPercent = (duracionMin / 60) * 100;
+          
+          var style = 'top: ' + topPercent + '%; height: ' + heightPercent + '%;';
+
+          cellHtml += '<div class="slot-appointment" style="' + style + '" title="' + app.escapeHtml(c.Cliente_Nombre) + ' - ' + hInicioStr + '" onclick="admin.showDetalleCita(' + JSON.stringify(c).replace(/"/g, '&quot;') + ')">';
+          cellHtml += '<strong>' + hInicioStr + '</strong> ' + app.escapeHtml(c.Cliente_Nombre);
+          cellHtml += '</div>';
+        });
+
+        cellHtml += '</div>';
+        html += cellHtml;
+      }
+    }
+
+    grid.innerHTML = html;
+  },
+
+  renderProximasCitas: function() {
+    var tbody = document.getElementById('dashboard-proximas-tbody');
+    if (!tbody) return;
+
+    var citas = this.state.citas;
+    if (!citas || citas.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding:32px;">' +
+        '<i class="ri-calendar-line" style="font-size:24px;display:block;margin-bottom:8px;opacity:0.3;"></i>' +
+        'No hay citas próximas</td></tr>';
+      return;
+    }
+
+    var html = '';
+    citas.slice(0, 5).forEach(c => {
+      var estadoBadge = this.getEstadoBadge(c.Estado);
+      var tipoBadge = c.Tipo === 'domicilio'
+        ? '<span class="badge badge-info">📍 Domicilio</span>'
+        : '<span class="badge badge-primary">🏥 Consulta</span>';
+
+      html += '<tr style="cursor:pointer;" onclick="admin.showDetalleCita(' + JSON.stringify(c).replace(/"/g, '&quot;') + ')">' +
+        '<td>' + app.formatDateShort(c.Fecha) + '</td>' +
+        '<td><strong>' + (c.Hora_Inicio || '') + '</strong></td>' +
+        '<td>' + app.escapeHtml(c.Cliente_Nombre || '') + '</td>' +
+        '<td>' + app.escapeHtml(c.servicio_nombre || c.Servicio_ID || '') + '</td>' +
+        '<td>' + tipoBadge + '</td>' +
+        '<td>' + estadoBadge + '</td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+  },
+
+  getEstadoBadge: function(estado) {
+    var map = {
+      'confirmada': '<span class="badge badge-success">✓ Confirmada</span>',
+      'cancelada': '<span class="badge badge-danger">✕ Cancelada</span>',
+      'completada': '<span class="badge badge-muted">✓ Completada</span>',
+      'no_show': '<span class="badge badge-warning">⚠ No presentado</span>'
+    };
+    return map[estado] || '<span class="badge badge-muted">' + (estado || 'Desconocido') + '</span>';
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // CITAS
+  // ═══════════════════════════════════════════════════════════
+
+  loadCitas: function() {
+    app.showLoader('Cargando citas...');
+    app.fetchData('getCitasTodas').then(citas => {
+      this.state.citas = citas || [];
+      this.renderCitas(citas);
+      app.hideLoader();
+    }).catch(err => {
+      console.error('Error cargando citas:', err);
+      app.hideLoader();
+    });
+  },
+
+  renderCitas: function(citas) {
+    var tbody = document.getElementById('citas-tbody');
+    if (!tbody) return;
+
+    var countEl = document.getElementById('citas-count');
+    if (countEl) countEl.textContent = (citas ? citas.length : 0) + ' citas';
+
+    if (!citas || citas.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted" style="padding:40px;">' +
+        '<i class="ri-calendar-line" style="font-size:32px;display:block;margin-bottom:8px;opacity:0.3;"></i>' +
+        'No hay citas registradas</td></tr>';
+      return;
+    }
+
+    var html = '';
+    citas.forEach(c => {
+      var estadoBadge = this.getEstadoBadge(c.Estado);
+      var tipoBadge = c.Tipo === 'domicilio'
+        ? '<span class="badge badge-info">📍 Dom.</span>'
+        : '<span class="badge badge-primary">🏥 Cons.</span>';
+
+      html += '<tr>' +
+        '<td>' + app.formatDateShort(c.Fecha) + '</td>' +
+        '<td><strong>' + (c.Hora_Inicio || '') + '</strong></td>' +
+        '<td>' + app.escapeHtml(c.Cliente_Nombre || '') + '</td>' +
+        '<td>' + app.escapeHtml(c.Cliente_Telefono || '') + '</td>' +
+        '<td>' + app.escapeHtml(c.servicio_nombre || c.Servicio_ID || '') + '</td>' +
+        '<td>' + tipoBadge + '</td>' +
+        '<td>' + estadoBadge + '</td>' +
+        '<td>' +
+          '<button class="btn-icon" title="Ver detalle" onclick="admin.showDetalleCita(' + JSON.stringify(c).replace(/"/g, '&quot;') + ')">' +
+            '<i class="ri-eye-line"></i>' +
+          '</button>' +
+        '</td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+  },
+
+  filterCitas: function() {
+    var desde = document.getElementById('filter-fecha-desde').value;
+    var hasta = document.getElementById('filter-fecha-hasta').value;
+    var estado = document.getElementById('filter-estado').value;
+    var tipo = document.getElementById('filter-tipo').value;
+
+    var filtered = this.state.citas.filter(c => {
+      if (desde && c.Fecha < desde) return false;
+      if (hasta && c.Fecha > hasta) return false;
+      if (estado && c.Estado !== estado) return false;
+      if (tipo && c.Tipo !== tipo) return false;
+      return true;
+    });
+
+    this.renderCitas(filtered);
+  },
+
+  resetCitaFilters: function() {
+    document.getElementById('filter-fecha-desde').value = '';
+    document.getElementById('filter-fecha-hasta').value = '';
+    document.getElementById('filter-estado').value = '';
+    document.getElementById('filter-tipo').value = '';
+    this.renderCitas(this.state.citas);
+  },
+
+  showDetalleCita: function(cita) {
+    var content = document.getElementById('detalle-cita-content');
+    var actions = document.getElementById('detalle-cita-actions');
+
+    var html = '<div class="booking-summary">';
+    var fields = [
+      ['ID', cita.ID], ['Fecha', app.formatDate(cita.Fecha)], ['Hora', cita.Hora_Inicio + ' - ' + (cita.Hora_Fin || '')],
+      ['Servicio', cita.servicio_nombre || cita.Servicio_ID], ['Tipo', cita.Tipo === 'domicilio' ? '📍 A domicilio' : '🏥 En consulta'],
+      ['Estado', cita.Estado], ['Cliente', cita.Cliente_Nombre], ['Email', cita.Cliente_Email],
+      ['Teléfono', cita.Cliente_Telefono], ['Dirección', cita.Cliente_Direccion],
+      ['Desplazamiento', cita.Tiempo_Desplazamiento ? cita.Tiempo_Desplazamiento + ' min' : ''],
+      ['Notas', cita.Notas], ['Creada', app.formatDateShort(cita.Fecha_Creacion)],
+      ['Creada por', cita.Creada_Por || 'cliente']
+    ];
+
+    fields.forEach(([label, value]) => {
+      if (value) {
+        html += '<div class="summary-row"><span class="summary-label">' + label + '</span>' +
+          '<span class="summary-value">' + app.escapeHtml(String(value)) + '</span></div>';
+      }
+    });
+    html += '</div>';
+    content.innerHTML = html;
+
+    // Acciones según estado
+    var actionsHtml = '<button class="btn btn-secondary" onclick="app.closeModal(\'modal-detalle-cita\')">Cerrar</button>';
+    if (cita.Estado === 'confirmada') {
+      actionsHtml += ' <button class="btn btn-danger btn-sm" onclick="admin.cambiarEstadoCita(\'' + cita.ID + '\', \'cancelada\')"><i class="ri-close-circle-line"></i> Cancelar</button>';
+      actionsHtml += ' <button class="btn btn-secondary btn-sm" onclick="admin.cambiarEstadoCita(\'' + cita.ID + '\', \'no_show\')"><i class="ri-user-unfollow-line"></i> No presentado</button>';
+      actionsHtml += ' <button class="btn btn-primary btn-sm" onclick="admin.cambiarEstadoCita(\'' + cita.ID + '\', \'completada\')"><i class="ri-check-line"></i> Completada</button>';
+    }
+    actions.innerHTML = actionsHtml;
+
+    app.openModal('modal-detalle-cita');
+  },
+
+  cambiarEstadoCita: function(citaId, nuevoEstado) {
+    if (!app.confirm('¿Cambiar el estado a "' + nuevoEstado + '"?')) return;
+
+    app.showLoader('Actualizando...');
+    app.fetchData('actualizarEstadoCita', citaId, nuevoEstado).then(result => {
+      app.hideLoader();
+      app.closeModal('modal-detalle-cita');
+      if (result && result.success) {
+        app.showToast('Estado actualizado', 'success');
+        this.loadCitas();
+      } else {
+        app.showToast(result.message || 'Error al actualizar', 'error');
+      }
+    }).catch(err => {
+      app.hideLoader();
+      app.showToast('Error de conexión', 'error');
+    });
+  },
+
+  // ─── Nueva Cita Manual ───
+  openNewCitaModal: function() {
+    this.populateServicioSelects();
+    // Limpiar formulario
+    document.getElementById('new-cita-servicio').value = '';
+    document.getElementById('new-cita-fecha').value = '';
+    document.getElementById('new-cita-hora').value = '';
+    document.getElementById('new-cita-nombre').value = '';
+    document.getElementById('new-cita-email').value = '';
+    document.getElementById('new-cita-telefono').value = '';
+    document.getElementById('new-cita-direccion').value = '';
+    document.getElementById('new-cita-notas').value = '';
+    document.getElementById('new-cita-direccion-group').style.display = 'none';
+
+    // Listener para mostrar/ocultar dirección
+    var select = document.getElementById('new-cita-servicio');
+    select.onchange = function() {
+      var svc = admin.state.servicios.find(s => s.ID == select.value);
+      document.getElementById('new-cita-direccion-group').style.display =
+        (svc && svc.Tipo === 'domicilio') ? 'block' : 'none';
+    };
+
+    // Pre-rellenar datos del cliente si viene de la ficha de cliente
+    if (this.currentClienteEmail) {
+      var cliente = this.state.clientes.find(c => c.Email === this.currentClienteEmail);
+      if (cliente) {
+        document.getElementById('new-cita-nombre').value = cliente.Nombre || '';
+        document.getElementById('new-cita-email').value = cliente.Email || '';
+        document.getElementById('new-cita-telefono').value = cliente.Telefono || '';
+        document.getElementById('new-cita-direccion').value = cliente.Direccion || '';
+      }
+      this.currentClienteEmail = null;
+    }
+
+    app.openModal('modal-nueva-cita');
+  },
+
+  populateServicioSelects: function() {
+    var select = document.getElementById('new-cita-servicio');
+    if (!select) return;
+    select.innerHTML = '<option value="">Seleccionar...</option>';
+    (this.state.servicios || []).forEach(s => {
+      if (s.Activo === true || s.Activo === 'TRUE') {
+        var opt = document.createElement('option');
+        opt.value = s.ID;
+        opt.textContent = s.Nombre + ' (' + s.Duracion_Minutos + 'min - ' + s.Precio + '€)';
+        select.appendChild(opt);
+      }
+    });
+  },
+
+  saveNewCita: function() {
+    var servicioId = document.getElementById('new-cita-servicio').value;
+    var fecha = document.getElementById('new-cita-fecha').value;
+    var hora = document.getElementById('new-cita-hora').value;
+    var nombre = document.getElementById('new-cita-nombre').value.trim();
+
+    if (!servicioId || !fecha || !hora || !nombre) {
+      app.showToast('Rellena al menos servicio, fecha, hora y nombre', 'warning');
+      return;
+    }
+
+    var datos = {
+      servicio_id: servicioId,
+      fecha: fecha,
+      hora: hora,
+      nombre: nombre,
+      email: document.getElementById('new-cita-email').value.trim(),
+      telefono: document.getElementById('new-cita-telefono').value.trim(),
+      direccion: document.getElementById('new-cita-direccion').value.trim(),
+      notas: document.getElementById('new-cita-notas').value.trim()
+    };
+
+    app.showLoader('Creando cita...');
+    app.fetchData('crearReservaAdmin', datos).then(result => {
+      app.hideLoader();
+      if (result && result.success) {
+        app.closeModal('modal-nueva-cita');
+        app.showToast('Cita creada correctamente', 'success');
+        this.loadCitas();
+        this.refreshDashboard();
+      } else {
+        app.showToast(result.message || 'Error al crear la cita', 'error');
+      }
+    }).catch(err => {
+      app.hideLoader();
+      app.showToast('Error de conexión', 'error');
+    });
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // HORARIOS
+  // ═══════════════════════════════════════════════════════════
+
+  loadHorarios: function() {
+    app.showLoader('Cargando horarios...');
+    Promise.all([
+      app.fetchData('getHorarios').catch(() => []),
+      app.fetchData('getExcepciones').catch(() => [])
+    ]).then(([horarios, excepciones]) => {
+      this.state.horarios = horarios || [];
+      this.state.excepciones = excepciones || [];
+      this.renderHorarios();
+      this.renderExcepciones();
+      app.hideLoader();
+    }).catch(err => {
+      console.error(err);
+      app.hideLoader();
+    });
+  },
+
+  renderHorarios: function() {
+    var tbody = document.getElementById('horarios-tbody');
+    if (!tbody) return;
+
+    var dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    var html = '';
+
+    dias.forEach(dia => {
+      var h = this.state.horarios.find(r => r.Dia === dia) || { Abierto: false };
+      var abierto = h.Abierto === true || h.Abierto === 'TRUE';
+
+      html += '<tr data-dia="' + dia + '">' +
+        '<td class="schedule-day-name">' + dia + '</td>' +
+        '<td><label class="toggle"><input type="checkbox" class="horario-toggle" data-dia="' + dia + '"' +
+          (abierto ? ' checked' : '') + '><span class="toggle-slider"></span></label></td>' +
+        '<td><input type="time" class="schedule-time-input" id="h1i-' + dia + '" value="' + (h.Hora_Inicio_1 || '') + '" step="900"' +
+          (!abierto ? ' disabled' : '') + '></td>' +
+        '<td class="schedule-separator">—</td>' +
+        '<td><input type="time" class="schedule-time-input" id="h1f-' + dia + '" value="' + (h.Hora_Fin_1 || '') + '" step="900"' +
+          (!abierto ? ' disabled' : '') + '></td>' +
+        '<td><input type="time" class="schedule-time-input" id="h2i-' + dia + '" value="' + (h.Hora_Inicio_2 || '') + '" step="900"' +
+          (!abierto ? ' disabled' : '') + '></td>' +
+        '<td class="schedule-separator">—</td>' +
+        '<td><input type="time" class="schedule-time-input" id="h2f-' + dia + '" value="' + (h.Hora_Fin_2 || '') + '" step="900"' +
+          (!abierto ? ' disabled' : '') + '></td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+
+    // Listeners para toggles
+    document.querySelectorAll('.horario-toggle').forEach(toggle => {
+      toggle.addEventListener('change', function() {
+        var dia = this.dataset.dia;
+        var row = document.querySelector('tr[data-dia="' + dia + '"]');
+        row.querySelectorAll('.schedule-time-input').forEach(input => {
+          input.disabled = !this.checked;
+        });
+      });
+    });
+  },
+
+  saveHorarios: function() {
+    var dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    var horariosData = dias.map(dia => ({
+      Dia: dia,
+      Abierto: document.querySelector('.horario-toggle[data-dia="' + dia + '"]').checked,
+      Hora_Inicio_1: document.getElementById('h1i-' + dia).value || '',
+      Hora_Fin_1: document.getElementById('h1f-' + dia).value || '',
+      Hora_Inicio_2: document.getElementById('h2i-' + dia).value || '',
+      Hora_Fin_2: document.getElementById('h2f-' + dia).value || ''
+    }));
+
+    app.showLoader('Guardando horarios...');
+    app.fetchData('saveHorarios', horariosData).then(result => {
+      app.hideLoader();
+      if (result && result.success) {
+        app.showToast('Horarios guardados', 'success');
+      } else {
+        app.showToast('Error al guardar', 'error');
+      }
+    }).catch(err => {
+      app.hideLoader();
+      app.showToast('Error de conexión', 'error');
+    });
+  },
+
+  // ─── Excepciones ───
+  renderExcepciones: function() {
+    var tbody = document.getElementById('excepciones-tbody');
+    if (!tbody) return;
+
+    var excs = this.state.excepciones;
+    if (!excs || excs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted" style="padding:24px;">No hay excepciones configuradas</td></tr>';
+      return;
+    }
+
+    var html = '';
+    excs.forEach(exc => {
+      var tipoBadge = exc.Tipo === 'cerrado'
+        ? '<span class="badge badge-danger">Cerrado</span>'
+        : '<span class="badge badge-warning">Especial</span>';
+      var horario = exc.Tipo === 'especial' ? (exc.Hora_Inicio_1 || '') + ' - ' + (exc.Hora_Fin_1 || '') : '—';
+
+      html += '<tr>' +
+        '<td>' + app.formatDateShort(exc.Fecha) + '</td>' +
+        '<td>' + tipoBadge + '</td>' +
+        '<td>' + horario + '</td>' +
+        '<td>' + app.escapeHtml(exc.Motivo || '') + '</td>' +
+        '<td><button class="btn-icon" title="Eliminar" onclick="admin.deleteExcepcion(' + exc._rowIndex + ')">' +
+        '<i class="ri-delete-bin-line"></i></button></td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+  },
+
+  openExcepcionModal: function() {
+    document.getElementById('exc-fecha').value = '';
+    document.getElementById('exc-tipo').value = 'cerrado';
+    document.getElementById('exc-hora-inicio').value = '';
+    document.getElementById('exc-hora-fin').value = '';
+    document.getElementById('exc-motivo').value = '';
+    document.getElementById('exc-horario-especial').style.display = 'none';
+    app.openModal('modal-excepcion');
+  },
+
+  toggleExcTipo: function() {
+    var tipo = document.getElementById('exc-tipo').value;
+    document.getElementById('exc-horario-especial').style.display = tipo === 'especial' ? 'block' : 'none';
+  },
+
+  saveExcepcion: function() {
+    var fecha = document.getElementById('exc-fecha').value;
+    if (!fecha) { app.showToast('Selecciona una fecha', 'warning'); return; }
+
+    var data = {
+      Fecha: fecha,
+      Tipo: document.getElementById('exc-tipo').value,
+      Hora_Inicio_1: document.getElementById('exc-hora-inicio').value || '',
+      Hora_Fin_1: document.getElementById('exc-hora-fin').value || '',
+      Hora_Inicio_2: '',
+      Hora_Fin_2: '',
+      Motivo: document.getElementById('exc-motivo').value
+    };
+
+    app.showLoader('Guardando...');
+    app.fetchData('addExcepcion', data).then(result => {
+      app.hideLoader();
+      app.closeModal('modal-excepcion');
+      if (result && result.success) {
+        app.showToast('Excepción añadida', 'success');
+        this.loadHorarios();
+      } else {
+        app.showToast('Error', 'error');
+      }
+    }).catch(err => { app.hideLoader(); app.showToast('Error', 'error'); });
+  },
+
+  deleteExcepcion: function(rowIndex) {
+    if (!app.confirm('¿Eliminar esta excepción?')) return;
+    app.showLoader('Eliminando...');
+    app.fetchData('deleteExcepcion', rowIndex).then(result => {
+      app.hideLoader();
+      if (result && result.success) {
+        app.showToast('Excepción eliminada', 'success');
+        this.loadHorarios();
+      }
+    }).catch(err => { app.hideLoader(); app.showToast('Error', 'error'); });
+  },
+
+  // ─── Bloqueo rango ───
+  openBloqueoRango: function() {
+    document.getElementById('bloqueo-fecha-inicio').value = '';
+    document.getElementById('bloqueo-fecha-fin').value = '';
+    document.getElementById('bloqueo-motivo').value = '';
+    app.openModal('modal-bloqueo-rango');
+  },
+
+  saveBloqueoRango: function() {
+    var inicio = document.getElementById('bloqueo-fecha-inicio').value;
+    var fin = document.getElementById('bloqueo-fecha-fin').value;
+    var motivo = document.getElementById('bloqueo-motivo').value;
+
+    if (!inicio || !fin) { app.showToast('Selecciona fechas de inicio y fin', 'warning'); return; }
+    if (inicio > fin) { app.showToast('La fecha de inicio debe ser anterior a la de fin', 'warning'); return; }
+
+    app.showLoader('Bloqueando fechas...');
+    app.fetchData('bloquearRangoFechas', inicio, fin, motivo).then(result => {
+      app.hideLoader();
+      app.closeModal('modal-bloqueo-rango');
+      if (result && result.success) {
+        app.showToast('Rango bloqueado (' + result.dias + ' días)', 'success');
+        this.loadHorarios();
+      } else {
+        app.showToast('Error', 'error');
+      }
+    }).catch(err => { app.hideLoader(); app.showToast('Error', 'error'); });
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // SERVICIOS
+  // ═══════════════════════════════════════════════════════════
+
+  loadServicios: function() {
+    app.showLoader('Cargando servicios...');
+    app.fetchData('getServicios').then(data => {
+      this.state.servicios = data || [];
+      this.renderServicios();
+      app.hideLoader();
+    }).catch(err => { app.hideLoader(); });
+  },
+
+  renderServicios: function() {
+    var tbody = document.getElementById('servicios-tbody');
+    if (!tbody) return;
+
+    var svcs = this.state.servicios;
+    if (!svcs || svcs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding:32px;">No hay servicios</td></tr>';
+      return;
+    }
+
+    var html = '';
+    svcs.forEach(s => {
+      var activo = s.Activo === true || s.Activo === 'TRUE';
+      var tipoBadge = s.Tipo === 'domicilio' ? '<span class="badge badge-info">Domicilio</span>' : '<span class="badge badge-primary">Consulta</span>';
+      html += '<tr>' +
+        '<td><strong>' + app.escapeHtml(s.Nombre) + '</strong><br><span class="text-sm text-muted">' + app.escapeHtml(s.Descripcion || '') + '</span></td>' +
+        '<td>' + tipoBadge + '</td>' +
+        '<td>' + s.Duracion_Minutos + ' min</td>' +
+        '<td><strong>' + s.Precio + '€</strong></td>' +
+        '<td><label class="toggle"><input type="checkbox"' + (activo ? ' checked' : '') +
+          ' onchange="admin.toggleServicio(\'' + s.ID + '\', this.checked)"><span class="toggle-slider"></span></label></td>' +
+        '<td style="white-space: nowrap;"><button class="btn-icon" title="Editar" onclick="admin.editServicio(' + JSON.stringify(s).replace(/"/g, '&quot;') + ')">' +
+          '<i class="ri-pencil-line"></i></button>' +
+        '<button class="btn-icon" title="Eliminar" onclick="admin.deleteServicio(' + s._rowIndex + ')" style="color:var(--danger);">' +
+          '<i class="ri-delete-bin-line"></i></button></td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+  },
+
+  openServicioModal: function() {
+    document.getElementById('modal-servicio-title').innerHTML = '<i class="ri-stethoscope-line text-primary"></i> Nuevo servicio';
+    document.getElementById('svc-edit-id').value = '';
+    document.getElementById('svc-nombre').value = '';
+    document.getElementById('svc-descripcion').value = '';
+    document.getElementById('svc-tipo').value = 'consulta';
+    document.getElementById('svc-duracion').value = '60';
+    document.getElementById('svc-precio').value = '40';
+    app.openModal('modal-servicio');
+  },
+
+  editServicio: function(svc) {
+    document.getElementById('modal-servicio-title').innerHTML = '<i class="ri-stethoscope-line text-primary"></i> Editar servicio';
+    document.getElementById('svc-edit-id').value = svc.ID || '';
+    document.getElementById('svc-nombre').value = svc.Nombre || '';
+    document.getElementById('svc-descripcion').value = svc.Descripcion || '';
+    document.getElementById('svc-tipo').value = svc.Tipo || 'consulta';
+    document.getElementById('svc-duracion').value = svc.Duracion_Minutos || 60;
+    document.getElementById('svc-precio').value = svc.Precio || 0;
+    app.openModal('modal-servicio');
+  },
+
+  saveServicio: function() {
+    var nombre = document.getElementById('svc-nombre').value.trim();
+    if (!nombre) { app.showToast('El nombre es obligatorio', 'warning'); return; }
+
+    var data = {
+      ID: document.getElementById('svc-edit-id').value || '',
+      Nombre: nombre,
+      Descripcion: document.getElementById('svc-descripcion').value.trim(),
+      Tipo: document.getElementById('svc-tipo').value,
+      Duracion_Minutos: parseInt(document.getElementById('svc-duracion').value) || 60,
+      Precio: parseInt(document.getElementById('svc-precio').value) || 0,
+      Activo: true
+    };
+
+    app.showLoader('Guardando servicio...');
+    app.fetchData('saveServicio', data).then(result => {
+      app.hideLoader();
+      app.closeModal('modal-servicio');
+      if (result && result.success) {
+        app.showToast('Servicio guardado', 'success');
+        this.loadServicios();
+      } else {
+        app.showToast('Error', 'error');
+      }
+    }).catch(err => { app.hideLoader(); app.showToast('Error', 'error'); });
+  },
+
+  toggleServicio: function(id, activo) {
+    app.fetchData('toggleServicio', id, activo).then(result => {
+      if (result && result.success) {
+        app.showToast(activo ? 'Servicio activado' : 'Servicio desactivado', 'success');
+      }
+    }).catch(() => {});
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // CLIENTES
+  // ═══════════════════════════════════════════════════════════
+
+  loadClientes: function() {
+    app.showLoader('Cargando clientes...');
+    app.fetchData('getClientes').then(data => {
+      this.state.clientes = data || [];
+      this.renderClientes(data);
+      app.hideLoader();
+    }).catch(err => { app.hideLoader(); });
+  },
+
+  renderClientes: function(clientes) {
+    var tbody = document.getElementById('clientes-tbody');
+    if (!tbody) return;
+
+    var countEl = document.getElementById('clientes-count');
+    if (countEl) countEl.textContent = (clientes ? clientes.length : 0) + ' clientes';
+
+    if (!clientes || clientes.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted" style="padding:40px;">' +
+        '<i class="ri-user-line" style="font-size:32px;display:block;margin-bottom:8px;opacity:0.3;"></i>' +
+        'No hay clientes registrados</td></tr>';
+      return;
+    }
+
+    var html = '';
+    clientes.forEach(c => {
+      html += '<tr>' +
+        '<td><strong>' + app.escapeHtml(c.Nombre || '') + '</strong></td>' +
+        '<td>' + app.escapeHtml(c.Email || '') + '</td>' +
+        '<td>' + app.escapeHtml(c.Telefono || '') + '</td>' +
+        '<td><span class="badge badge-primary">' + (c.Num_Citas || 0) + '</span></td>' +
+        '<td>' + app.formatDateShort(c.Ultima_Cita || '') + '</td>' +
+        '<td style="white-space: nowrap;"><button class="btn-icon" title="Ver detalle" onclick="admin.showDetalleCliente(\'' + (c.Email || '').replace(/'/g, "\\'") + '\')">' +
+          '<i class="ri-eye-line"></i></button>' +
+        '<button class="btn-icon" title="Eliminar" onclick="admin.deleteCliente(' + c._rowIndex + ')" style="color:var(--danger);">' +
+          '<i class="ri-delete-bin-line"></i></button></td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+  },
+
+  filterClientes: function() {
+    var search = (document.getElementById('clientes-search').value || '').toLowerCase();
+    var filtered = this.state.clientes.filter(c =>
+      (c.Nombre || '').toLowerCase().includes(search) ||
+      (c.Email || '').toLowerCase().includes(search) ||
+      (c.Telefono || '').includes(search)
+    );
+    this.renderClientes(filtered);
+  },
+
+  showDetalleCliente: function(email) {
+    var cliente = this.state.clientes.find(c => c.Email === email);
+    if (!cliente) return;
+
+    document.getElementById('cliente-detail-nombre').textContent = cliente.Nombre || 'Sin nombre';
+
+    var infoHtml = '<div class="booking-summary">' +
+      '<div class="summary-row"><span class="summary-label">Email</span><span class="summary-value">' + app.escapeHtml(cliente.Email || 'N/A') + '</span></div>' +
+      '<div class="summary-row"><span class="summary-label">Teléfono</span><span class="summary-value">' + app.escapeHtml(cliente.Telefono || '') + '</span></div>' +
+      '<div class="summary-row"><span class="summary-label">Dirección</span><span class="summary-value">' + app.escapeHtml(cliente.Direccion || '') + '</span></div>' +
+      '<div class="summary-row"><span class="summary-label">Total citas</span><span class="summary-value">' + (cliente.Num_Citas || 0) + '</span></div>' +
+      '<div class="summary-row"><span class="summary-label">Primera cita</span><span class="summary-value">' + app.formatDateShort(cliente.Fecha_Registro || '') + '</span></div>' +
+      '</div>';
+    document.getElementById('cliente-detail-info').innerHTML = infoHtml;
+
+    // Cargar historial de citas
+    this.currentClienteEmail = email;
+    app.fetchData('getCitasPorCliente', email).then(citas => {
+      var tbody = document.getElementById('cliente-historial-tbody');
+      if (!citas || citas.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Sin citas registradas</td></tr>';
+        return;
+      }
+      var html = '';
+      citas.forEach(c => {
+        html += '<tr><td>' + app.formatDateShort(c.Fecha) + '</td>' +
+          '<td>' + (c.Hora_Inicio || '') + '</td>' +
+          '<td>' + app.escapeHtml(c.servicio_nombre || '') + '</td>' +
+          '<td>' + admin.getEstadoBadge(c.Estado) + '</td></tr>';
+      });
+      tbody.innerHTML = html;
+    }).catch(() => {});
+
+    app.openModal('modal-detalle-cliente');
+  },
+
+  agendarParaCliente: function() {
+    app.closeModal('modal-detalle-cliente');
+    this.openNewCitaModal();
+  },
+
+  // ═══════════════════════════════════════════════════════════
+  // AJUSTES
+  // ═══════════════════════════════════════════════════════════
+
+  loadAjustes: function() {
+    app.showLoader('Cargando configuración...');
+    app.fetchData('getConfigAdmin').then(config => {
+      this.state.config = config || {};
+      this.populateAjustes(config);
+      app.hideLoader();
+    }).catch(err => {
+      console.error(err);
+      app.hideLoader();
+    });
+  },
+
+  populateAjustes: function(c) {
+    if (!c) return;
+    var fields = {
+      'cfg-nombre-negocio': c.nombre_negocio,
+      'cfg-email-admin': c.email_admin,
+      'cfg-telefono': c.telefono,
+      'cfg-whatsapp': c.whatsapp,
+      'cfg-direccion-consulta': c.direccion_consulta,
+      'cfg-duracion-sesion': c.duracion_sesion_minutos,
+      'cfg-intervalo-slots': c.intervalo_slots_minutos,
+      'cfg-margen-consulta': c.margen_entre_citas_consulta,
+      'cfg-margen-domicilio': c.margen_entre_citas_domicilio,
+      'cfg-antelacion-minima': c.antelacion_minima_horas,
+      'cfg-antelacion-maxima': c.antelacion_maxima_dias,
+      'cfg-antelacion-cancelacion': c.antelacion_cancelacion_horas,
+      'cfg-calendario-citas': c.calendario_citas,
+      'cfg-url-logo': c.url_logo,
+      'cfg-mensaje-confirmacion': c.mensaje_confirmacion,
+      'cfg-politica-cancelacion': c.politica_cancelacion,
+      'cfg-url-resena': c.url_google_maps_resena
+    };
+
+    for (var id in fields) {
+      var el = document.getElementById(id);
+      if (el && fields[id] !== undefined) el.value = fields[id];
+    }
+
+    // Calendarios de disponibilidad (convertir comas a líneas)
+    var calDisp = document.getElementById('cfg-calendarios-disponibilidad');
+    if (calDisp && c.calendarios_disponibilidad) {
+      calDisp.value = c.calendarios_disponibilidad.split(',').map(s => s.trim()).join('\n');
+    }
+
+    // Toggles
+    var r24 = document.getElementById('cfg-recordatorio-24h');
+    if (r24) r24.checked = c.recordatorio_24h_activo === 'true' || c.recordatorio_24h_activo === true;
+    var r2 = document.getElementById('cfg-recordatorio-2h');
+    if (r2) r2.checked = c.recordatorio_2h_activo === 'true' || c.recordatorio_2h_activo === true;
+  },
+
+  saveAjustes: function() {
+    var calDisp = document.getElementById('cfg-calendarios-disponibilidad').value
+      .split('\n').map(s => s.trim()).filter(s => s).join(',');
+
+    var config = {
+      nombre_negocio: document.getElementById('cfg-nombre-negocio').value,
+      email_admin: document.getElementById('cfg-email-admin').value,
+      telefono: document.getElementById('cfg-telefono').value,
+      whatsapp: document.getElementById('cfg-whatsapp').value,
+      direccion_consulta: document.getElementById('cfg-direccion-consulta').value,
+      duracion_sesion_minutos: document.getElementById('cfg-duracion-sesion').value,
+      intervalo_slots_minutos: document.getElementById('cfg-intervalo-slots').value,
+      margen_entre_citas_consulta: document.getElementById('cfg-margen-consulta').value,
+      margen_entre_citas_domicilio: document.getElementById('cfg-margen-domicilio').value,
+      antelacion_minima_horas: document.getElementById('cfg-antelacion-minima').value,
+      antelacion_maxima_dias: document.getElementById('cfg-antelacion-maxima').value,
+      antelacion_cancelacion_horas: document.getElementById('cfg-antelacion-cancelacion').value,
+      calendarios_disponibilidad: calDisp,
+      calendario_citas: document.getElementById('cfg-calendario-citas').value,
+      url_logo: document.getElementById('cfg-url-logo').value,
+      mensaje_confirmacion: document.getElementById('cfg-mensaje-confirmacion').value,
+      politica_cancelacion: document.getElementById('cfg-politica-cancelacion').value,
+      url_google_maps_resena: document.getElementById('cfg-url-resena').value,
+      recordatorio_24h_activo: document.getElementById('cfg-recordatorio-24h').checked ? 'true' : 'false',
+      recordatorio_2h_activo: document.getElementById('cfg-recordatorio-2h').checked ? 'true' : 'false'
+    };
+
+    app.showLoader('Guardando configuración...');
+    app.fetchData('saveConfigAdmin', config).then(result => {
+      app.hideLoader();
+      if (result && result.success) {
+        app.showToast('Configuración guardada', 'success');
+      } else {
+        app.showToast('Error al guardar', 'error');
+      }
+    }).catch(err => { app.hideLoader(); app.showToast('Error', 'error'); });
+  },
+
+  // ─── Herramientas ───
+  generarEstructuraSheets: function() {
+    if (!app.confirm('¿Generar la estructura de la hoja de cálculo?\n\nSe crearán las pestañas: Configuracion, Horarios, Excepciones, Servicios, Citas, Clientes.\n\nSi ya existen, NO se sobrescribirán.')) return;
+
+    app.showLoader('Generando estructura...');
+    app.fetchData('generarEstructuraHoja').then(result => {
+      app.hideLoader();
+      if (result && result.success) {
+        app.showToast('Estructura creada correctamente: ' + (result.message || ''), 'success');
+      } else {
+        app.showToast(result.message || 'Error al generar', 'error');
+      }
+    }).catch(err => {
+      app.hideLoader();
+      app.showToast('Error: ' + err, 'error');
+    });
+  },
+
+  instalarTriggers: function() {
+    if (!app.confirm('¿Instalar/reinstalar los triggers automáticos?\n\n• Recordatorios por email (cada hora)\n• Actualización de citas pasadas (diario)\n• Solicitud de reseñas (diario)')) return;
+
+    app.showLoader('Instalando triggers...');
+    app.fetchData('setupTriggers').then(result => {
+      app.hideLoader();
+      if (result && result.success) {
+        app.showToast('Triggers instalados', 'success');
+      } else {
+        app.showToast('Error', 'error');
+      }
+    }).catch(err => { app.hideLoader(); app.showToast('Error: ' + err, 'error'); });
+  },
+
+  copyPublicLink: function(serviceId) {
+    var url = 'https://osteopatiamadrid.com/reserva';
+    if (serviceId) url += '?servicio=' + serviceId;
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        app.showToast('Enlace copiado al portapapeles', 'success');
+      });
+    } else {
+      prompt('Copia este enlace:', url);
+    }
+  },
+
+  deleteServicio: function(rowIndex) {
+    if (!app.confirm('¿Estás seguro de que quieres eliminar este servicio de forma permanente?')) return;
+    
+    app.showLoader('Eliminando servicio...');
+    app.fetchData('deleteServicioAdmin', rowIndex).then(result => {
+      app.hideLoader();
+      if (result && result.success) {
+        app.showToast('Servicio eliminado', 'success');
+        admin.loadServicios();
+      } else {
+        app.showToast('Error al eliminar', 'error');
+      }
+    }).catch(err => { app.hideLoader(); app.showToast('Error de conexión', 'error'); });
+  },
+
+  deleteCliente: function(rowIndex) {
+    if (!app.confirm('¿Estás seguro de que quieres eliminar este cliente de forma permanente?')) return;
+    
+    app.showLoader('Eliminando cliente...');
+    app.fetchData('deleteClienteAdmin', rowIndex).then(result => {
+      app.hideLoader();
+      if (result && result.success) {
+        app.showToast('Cliente eliminado', 'success');
+        admin.loadClientes();
+      } else {
+        app.showToast('Error al eliminar', 'error');
+      }
+    }).catch(err => { app.hideLoader(); app.showToast('Error de conexión', 'error'); });
+  }
+};
+</script>

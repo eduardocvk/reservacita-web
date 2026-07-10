@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <title>Reserva tu cita — Eduardo Callejo Osteopatía</title>
+
+  <!-- Tipografías -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Iconos -->
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+
+  <!-- CSS -->
+  <?!= include('CSS'); ?>
+</head>
+<body class="public-wrapper">
+
+  <!-- Header -->
+  <header class="public-header">
+    <a href="https://osteopatiamadrid.com" target="_blank" rel="noopener">
+      <img src="https://osteopatiamadrid.com/lovable-uploads/eduardo-callejo-logo.png"
+           alt="Eduardo Callejo — Osteopatía Madrid"
+           class="header-logo">
+    </a>
+  </header>
+
+  <!-- Toast Container -->
+  <div id="toast-container"></div>
+
+  <!-- Loader global -->
+  <div id="global-loader" class="loader-container" style="display: none;">
+    <div class="spinner"></div>
+    <p class="loader-text">Cargando...</p>
+  </div>
+
+  <!-- Contenido principal -->
+  <main class="booking-container">
+    <div class="booking-content">
+
+      <!-- Vista de Reserva -->
+      <div id="view-reserva" style="display: none;">
+        <?!= include('View_Reserva'); ?>
+      </div>
+
+      <!-- Vista de Cancelación / Reagendamiento -->
+      <div id="view-cancelar" style="display: none;">
+        <?!= include('View_Cancelar'); ?>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="public-footer">
+    <span>© 2026 Eduardo Callejo — Osteopatía Madrid</span>
+    <a href="https://wa.me/34676435634" target="_blank" class="whatsapp-float">
+      <i class="ri-whatsapp-line"></i> WhatsApp
+    </a>
+    <a href="?admin=true" class="admin-link" title="Panel de administración">
+      <i class="ri-settings-3-line"></i>
+    </a>
+  </footer>
+
+  <!-- JavaScript -->
+  <?!= include('JS_Global'); ?>
+  <?!= include('JS_Reserva'); ?>
+
+  <script>
+    // Datos inyectados desde el servidor
+    var INITIAL_VIEW = '<?= initialView ?>';
+    var TOKEN = '<?= token ?>';
+    var MODE = '<?= mode ?>';
+    var PRESELECTED_SERVICE = '<?= preselectedService ?>';
+
+    document.addEventListener('DOMContentLoaded', function() {
+      if (INITIAL_VIEW === 'cancelar') {
+        document.getElementById('view-cancelar').style.display = 'block';
+        if (typeof initCancelView === 'function') initCancelView(TOKEN, MODE);
+      } else {
+        document.getElementById('view-reserva').style.display = 'block';
+        if (typeof initReservaView === 'function') initReservaView(PRESELECTED_SERVICE);
+      }
+    });
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,771 @@
+<script>
+/**
+ * JS_Reserva.html — Lógica del wizard de reserva y la vista de cancelación.
+ */
+
+// ═══════════════════════════════════════════════════════════
+// WIZARD DE RESERVA
+// ═══════════════════════════════════════════════════════════
+
+const reserva = {
+  // Estado del wizard
+  currentStep: 1,
+  totalSteps: 4,
+  selectedService: null,
+  selectedDate: null,
+  selectedTime: null,
+  servicios: [],
+  config: {},
+  calYear: null,
+  calMonth: null,
+  availableDays: {},
+
+  // ─── Inicialización ───
+  init: function(preselectedService) {
+    app.showLoader('Cargando servicios...');
+    app.fetchData('getConfigPublica').then(data => {
+      this.config = data.config || {};
+      this.servicios = data.servicios || [];
+
+      // Actualizar política de cancelación
+      var policyEl = document.getElementById('policy-text');
+      if (policyEl && this.config.politica_cancelacion) {
+        policyEl.textContent = this.config.politica_cancelacion;
+      }
+
+      this.renderServicios();
+
+      // Pre-seleccionar servicio si viene por parámetro
+      if (preselectedService) {
+        var svc = this.servicios.find(s => s.ID == preselectedService);
+        if (svc) {
+          this.selectService(svc);
+        }
+      }
+
+      app.hideLoader();
+    }).catch(err => {
+      console.error('Error cargando config:', err);
+      // Modo offline/demo: usar datos hardcodeados
+      this.servicios = [
+        { ID: 1, Nombre: 'Sesión de osteopatía', Descripcion: 'Tratamiento personalizado de osteopatía en consulta', Duracion_Minutos: 60, Tipo: 'consulta', Precio: 40, Activo: true },
+        { ID: 2, Nombre: 'Osteopatía a domicilio', Descripcion: 'Sesión de osteopatía en tu domicilio', Duracion_Minutos: 60, Tipo: 'domicilio', Precio: 45, Activo: true }
+      ];
+      this.config = { politica_cancelacion: 'Puedes cancelar o reagendar tu cita hasta 4 horas antes de la hora programada.' };
+      this.renderServicios();
+      app.hideLoader();
+    });
+  },
+
+  // ─── Renderizar Servicios ───
+  renderServicios: function() {
+    var grid = document.getElementById('services-grid');
+    if (!grid) return;
+
+    var activeServices = this.servicios.filter(s => s.Activo === true || s.Activo === 'TRUE');
+    if (activeServices.length === 0) {
+      grid.innerHTML = '<div class="empty-state"><i class="ri-calendar-close-line"></i><h3>No hay servicios disponibles</h3><p>Contacta por WhatsApp para reservar</p></div>';
+      return;
+    }
+
+    var html = '';
+    activeServices.forEach(svc => {
+      var icon = svc.Tipo === 'domicilio' ? 'ri-home-heart-line' : 'ri-stethoscope-line';
+      var tipoLabel = svc.Tipo === 'domicilio' ? 'A domicilio' : 'En consulta';
+      html += '<div class="service-card" data-id="' + svc.ID + '" onclick="reserva.selectService(' + JSON.stringify(svc).replace(/"/g, '&quot;') + ')">' +
+        '<div class="service-icon"><i class="' + icon + '"></i></div>' +
+        '<div class="service-info">' +
+          '<div class="service-name">' + app.escapeHtml(svc.Nombre) + '</div>' +
+          '<div class="service-desc">' + app.escapeHtml(svc.Descripcion) + '</div>' +
+          '<div class="service-meta">' +
+            '<span><i class="ri-time-line"></i> ' + svc.Duracion_Minutos + ' min</span>' +
+            '<span><i class="ri-map-pin-line"></i> ' + tipoLabel + '</span>' +
+            '<span class="price">' + svc.Precio + '€</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="service-check"><i class="ri-check-line"></i></div>' +
+      '</div>';
+    });
+    grid.innerHTML = html;
+  },
+
+  // ─── Seleccionar Servicio ───
+  selectService: function(svc) {
+    this.selectedService = svc;
+
+    // Actualizar UI
+    document.querySelectorAll('.service-card').forEach(card => card.classList.remove('selected'));
+    var selectedCard = document.querySelector('.service-card[data-id="' + svc.ID + '"]');
+    if (selectedCard) selectedCard.classList.add('selected');
+
+    // Habilitar botón siguiente
+    document.getElementById('btn-step1-next').disabled = false;
+
+    // Mostrar/ocultar campo de dirección
+    var addressGroup = document.getElementById('address-group');
+    if (addressGroup) {
+      addressGroup.style.display = svc.Tipo === 'domicilio' ? 'block' : 'none';
+    }
+  },
+
+  // ─── Navegación del Wizard ───
+  nextStep: function() {
+    if (!this.validateStep(this.currentStep)) return;
+
+    if (this.currentStep === 1) {
+      // Al ir al paso 2, inicializar calendario
+      this.currentStep = 2;
+      this.updateStepUI();
+      this.initCalendar();
+    } else if (this.currentStep === 2) {
+      this.currentStep = 3;
+      this.updateStepUI();
+    } else if (this.currentStep === 3) {
+      this.currentStep = 4;
+      this.updateStepUI();
+      this.renderSummary();
+    }
+  },
+
+  prevStep: function() {
+    if (this.currentStep > 1) {
+      this.currentStep--;
+      this.updateStepUI();
+    }
+  },
+
+  goToStep: function(step) {
+    this.currentStep = step;
+    this.updateStepUI();
+  },
+
+  updateStepUI: function() {
+    // Actualizar steps indicator
+    for (var i = 1; i <= this.totalSteps; i++) {
+      var circle = document.querySelector('.step-circle[data-step="' + i + '"]');
+      var line = document.querySelector('.step-line[data-line="' + (i - 1) + '"]');
+
+      if (circle) {
+        circle.classList.remove('active', 'completed');
+        if (i === this.currentStep) circle.classList.add('active');
+        else if (i < this.currentStep) circle.classList.add('completed');
+      }
+      if (line) {
+        line.classList.toggle('completed', i <= this.currentStep);
+      }
+    }
+
+    // Mostrar paso actual
+    document.querySelectorAll('.wizard-step').forEach(step => step.classList.remove('active'));
+    var activeStep = document.getElementById('wizard-step-' + this.currentStep);
+    if (activeStep) activeStep.classList.add('active');
+  },
+
+  // ─── Validación por paso ───
+  validateStep: function(step) {
+    if (step === 1) {
+      if (!this.selectedService) {
+        app.showToast('Selecciona un servicio', 'warning');
+        return false;
+      }
+      return true;
+    }
+
+    if (step === 2) {
+      if (!this.selectedDate) {
+        app.showToast('Selecciona una fecha', 'warning');
+        return false;
+      }
+      if (!this.selectedTime) {
+        app.showToast('Selecciona una hora', 'warning');
+        return false;
+      }
+      return true;
+    }
+
+    if (step === 3) {
+      var valid = true;
+
+      var name = document.getElementById('client-name').value.trim();
+      if (!name) {
+        this.showFieldError('name'); valid = false;
+      } else { this.clearFieldError('name'); }
+
+      var email = document.getElementById('client-email').value.trim();
+      var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!email || !emailRegex.test(email)) {
+        this.showFieldError('email'); valid = false;
+      } else { this.clearFieldError('email'); }
+
+      var phone = document.getElementById('client-phone').value.trim();
+      if (!phone || phone.length < 6) {
+        this.showFieldError('phone'); valid = false;
+      } else { this.clearFieldError('phone'); }
+
+      // Dirección obligatoria si es domicilio
+      if (this.selectedService && this.selectedService.Tipo === 'domicilio') {
+        var address = document.getElementById('client-address').value.trim();
+        if (!address) {
+          this.showFieldError('address'); valid = false;
+        } else { this.clearFieldError('address'); }
+      }
+
+      // Aceptar política
+      if (!document.getElementById('accept-policy').checked) {
+        app.showToast('Debes aceptar la política de cancelación', 'warning');
+        valid = false;
+      }
+
+      if (!valid) app.showToast('Revisa los campos marcados en rojo', 'error');
+      return valid;
+    }
+
+    return true;
+  },
+
+  showFieldError: function(field) {
+    var input = document.getElementById('client-' + field);
+    var error = document.getElementById('error-' + field);
+    if (input) input.classList.add('error');
+    if (error) error.style.display = 'block';
+  },
+
+  clearFieldError: function(field) {
+    var input = document.getElementById('client-' + field);
+    var error = document.getElementById('error-' + field);
+    if (input) input.classList.remove('error');
+    if (error) error.style.display = 'none';
+  },
+
+
+
+  // ─── Calendario ───
+  initCalendar: function() {
+    var now = new Date();
+    this.calYear = now.getFullYear();
+    this.calMonth = now.getMonth();
+    this.renderCalendar();
+  },
+
+  renderCalendar: function() {
+    var year = this.calYear;
+    var month = this.calMonth;
+
+    // Label del mes
+    var label = document.getElementById('cal-month-label');
+    if (label) label.textContent = app.MESES[month] + ' ' + year;
+
+    // Deshabilitar botón "anterior" si es el mes actual
+    var now = new Date();
+    var prevBtn = document.getElementById('cal-prev');
+    if (prevBtn) prevBtn.disabled = (year === now.getFullYear() && month === now.getMonth());
+
+    var grid = document.getElementById('calendar-grid');
+    if (!grid) return;
+
+    // Cabecera días de la semana
+    var html = '';
+    app.DIAS_CORTOS.forEach(d => {
+      html += '<div class="calendar-weekday">' + d + '</div>';
+    });
+
+    // Primer día del mes (ajustar: JS 0=Dom, queremos 0=Lun)
+    var firstDay = new Date(year, month, 1);
+    var startDay = firstDay.getDay();
+    startDay = startDay === 0 ? 6 : startDay - 1; // 0=Lun...6=Dom
+
+    // Días vacíos antes del 1
+    for (var i = 0; i < startDay; i++) {
+      html += '<div class="calendar-day empty"></div>';
+    }
+
+    // Días del mes
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (var d = 1; d <= daysInMonth; d++) {
+      var date = new Date(year, month, d);
+      date.setHours(0, 0, 0, 0);
+
+      var classes = 'calendar-day';
+      var isDisabled = date < today;
+      var isToday = date.getTime() === today.getTime();
+      var isSelected = this.selectedDate && this.selectedDate === app.dateToString(date);
+
+      if (isDisabled) classes += ' disabled';
+      if (isToday) classes += ' today';
+      if (isSelected) classes += ' selected';
+
+      var dateStr = app.dateToString(date);
+      var onclick = isDisabled ? '' : ' onclick="reserva.selectDate(\'' + dateStr + '\')"';
+
+      html += '<div class="' + classes + '" data-date="' + dateStr + '"' + onclick + '>' + d + '</div>';
+    }
+
+    grid.innerHTML = html;
+  },
+
+  prevMonth: function() {
+    this.calMonth--;
+    if (this.calMonth < 0) { this.calMonth = 11; this.calYear--; }
+    this.renderCalendar();
+  },
+
+  nextMonth: function() {
+    this.calMonth++;
+    if (this.calMonth > 11) { this.calMonth = 0; this.calYear++; }
+    this.renderCalendar();
+  },
+
+  selectDate: function(dateStr) {
+    this.selectedDate = dateStr;
+    this.selectedTime = null;
+
+    // Actualizar botón siguiente
+    document.getElementById('btn-step2-next').disabled = true;
+
+    // Actualizar calendario visual
+    document.querySelectorAll('.calendar-day').forEach(el => el.classList.remove('selected'));
+    var dayEl = document.querySelector('.calendar-day[data-date="' + dateStr + '"]');
+    if (dayEl) dayEl.classList.add('selected');
+
+    // Mostrar label de fecha seleccionada
+    var dateLabel = document.getElementById('selected-date-label');
+    if (dateLabel) dateLabel.textContent = app.formatDate(dateStr);
+
+    // Cargar slots
+    this.loadSlots(dateStr);
+  },
+
+  loadSlots: function(dateStr) {
+    var container = document.getElementById('slots-container');
+    var content = document.getElementById('slots-content');
+    if (!container || !content) return;
+
+    container.style.display = 'block';
+    content.innerHTML = '<div class="slots-loading"><div class="mini-spinner"></div><p class="text-muted text-sm">Buscando horas disponibles...</p></div>';
+
+    var serviceId = this.selectedService ? this.selectedService.ID : null;
+
+    app.fetchData('getAvailableSlots', dateStr, serviceId).then(slots => {
+      if (!slots || slots.length === 0) {
+        content.innerHTML = '<div class="slots-empty"><i class="ri-calendar-close-line"></i>No hay horas disponibles para este día</div>';
+        return;
+      }
+
+      var html = '<div class="slots-grid">';
+      slots.forEach(slot => {
+        var classes = 'slot-btn';
+        if (!slot.disponible) classes += ' disabled';
+        var onclick = slot.disponible ? ' onclick="reserva.selectSlot(\'' + slot.hora + '\')"' : '';
+        html += '<button class="' + classes + '" data-time="' + slot.hora + '"' + onclick + '>' + slot.hora + '</button>';
+      });
+      html += '</div>';
+      content.innerHTML = html;
+    }).catch(err => {
+      console.error('Error cargando slots:', err);
+      // Modo demo: generar slots de ejemplo
+      var demoSlots = [];
+      for (var h = 9; h < 14; h++) {
+        for (var m = 0; m < 60; m += 15) {
+          demoSlots.push({ hora: h.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0'), disponible: Math.random() > 0.3 });
+        }
+      }
+      for (var h2 = 16; h2 < 20; h2++) {
+        for (var m2 = 0; m2 < 60; m2 += 15) {
+          demoSlots.push({ hora: h2.toString().padStart(2, '0') + ':' + m2.toString().padStart(2, '0'), disponible: Math.random() > 0.3 });
+        }
+      }
+
+      var html = '<div class="slots-grid">';
+      demoSlots.forEach(slot => {
+        var classes = 'slot-btn';
+        if (!slot.disponible) classes += ' disabled';
+        var onclick = slot.disponible ? ' onclick="reserva.selectSlot(\'' + slot.hora + '\')"' : '';
+        html += '<button class="' + classes + '" data-time="' + slot.hora + '"' + onclick + '>' + slot.hora + '</button>';
+      });
+      html += '</div>';
+      content.innerHTML = html;
+    });
+  },
+
+  selectSlot: function(time) {
+    this.selectedTime = time;
+
+    // Actualizar UI
+    document.querySelectorAll('.slot-btn').forEach(btn => btn.classList.remove('selected'));
+    var selectedBtn = document.querySelector('.slot-btn[data-time="' + time + '"]');
+    if (selectedBtn) selectedBtn.classList.add('selected');
+
+    // Habilitar botón siguiente
+    document.getElementById('btn-step2-next').disabled = false;
+  },
+
+  // ─── Resumen ───
+  renderSummary: function() {
+    var svc = this.selectedService;
+    document.getElementById('summary-service').textContent = svc ? svc.Nombre : '';
+    document.getElementById('summary-type').textContent = svc ? (svc.Tipo === 'domicilio' ? '📍 A domicilio' : '🏥 En consulta') : '';
+    document.getElementById('summary-date').textContent = app.formatDate(this.selectedDate);
+    document.getElementById('summary-time').textContent = this.selectedTime;
+    document.getElementById('summary-name').textContent = document.getElementById('client-name').value.trim();
+    document.getElementById('summary-email').textContent = document.getElementById('client-email').value.trim();
+    document.getElementById('summary-phone').textContent = document.getElementById('client-phone').value.trim();
+    document.getElementById('summary-price').textContent = svc ? (svc.Precio + '€') : '';
+
+    // Notas
+    var notes = document.getElementById('client-notes').value.trim();
+    var notesRow = document.getElementById('summary-notes-row');
+    if (notes && notesRow) {
+      document.getElementById('summary-notes').textContent = notes;
+      notesRow.style.display = 'flex';
+    } else if (notesRow) {
+      notesRow.style.display = 'none';
+    }
+
+    // Dirección (domicilio)
+    var addressRow = document.getElementById('summary-address-row');
+    var travelRow = document.getElementById('summary-travel-row');
+    if (svc && svc.Tipo === 'domicilio') {
+      var addr = document.getElementById('client-address').value.trim();
+      document.getElementById('summary-address').textContent = addr;
+      if (addressRow) addressRow.style.display = 'flex';
+      if (travelRow) travelRow.style.display = 'flex';
+      document.getElementById('summary-travel').textContent = 'Se calculará al confirmar';
+    } else {
+      if (addressRow) addressRow.style.display = 'none';
+      if (travelRow) travelRow.style.display = 'none';
+    }
+  },
+
+  // ─── Enviar Reserva ───
+  submitReservation: function() {
+    var btn = document.getElementById('btn-confirm');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<div class="mini-spinner" style="width:18px;height:18px;border-width:2px;margin:0"></div> Confirmando...'; }
+
+    var datos = {
+      servicio_id: this.selectedService.ID,
+      fecha: this.selectedDate,
+      hora: this.selectedTime,
+      nombre: document.getElementById('client-name').value.trim(),
+      email: document.getElementById('client-email').value.trim(),
+      telefono: document.getElementById('client-phone').value.trim(),
+      direccion: this.selectedService.Tipo === 'domicilio' ? document.getElementById('client-address').value.trim() : '',
+      notas: document.getElementById('client-notes').value.trim()
+    };
+
+    app.fetchData('crearReserva', datos).then(result => {
+      if (result && result.success) {
+        this.showSuccess(result);
+      } else {
+        app.showToast(result.message || 'Error al crear la reserva', 'error');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ri-check-line"></i> Confirmar Reserva'; }
+      }
+    }).catch(err => {
+      console.error('Error creando reserva:', err);
+      app.showToast('Error de conexión. Intenta de nuevo.', 'error');
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ri-check-line"></i> Confirmar Reserva'; }
+    });
+  },
+
+  showSuccess: function(result) {
+    // Ocultar todos los pasos
+    document.querySelectorAll('.wizard-step').forEach(s => s.classList.remove('active'));
+    document.getElementById('steps-indicator').style.display = 'none';
+
+    // Mostrar pantalla de éxito
+    var successStep = document.getElementById('wizard-step-success');
+    successStep.style.display = 'block';
+    successStep.classList.add('active');
+
+    // Rellenar datos
+    document.getElementById('success-email').textContent = document.getElementById('client-email').value.trim();
+
+    var details = document.getElementById('success-details');
+    var svc = this.selectedService;
+    details.innerHTML =
+      '<div class="summary-row"><span class="summary-label">Servicio</span><span class="summary-value">' + app.escapeHtml(svc.Nombre) + '</span></div>' +
+      '<div class="summary-row"><span class="summary-label">Fecha</span><span class="summary-value">' + app.formatDate(this.selectedDate) + '</span></div>' +
+      '<div class="summary-row"><span class="summary-label">Hora</span><span class="summary-value">' + this.selectedTime + '</span></div>';
+  },
+
+  // ─── Reset ───
+  reset: function() {
+    this.currentStep = 1;
+    this.selectedService = null;
+    this.selectedDate = null;
+    this.selectedTime = null;
+
+    // Limpiar formulario
+    document.getElementById('client-name').value = '';
+    document.getElementById('client-email').value = '';
+    document.getElementById('client-phone').value = '';
+    document.getElementById('client-address').value = '';
+    document.getElementById('client-notes').value = '';
+    document.getElementById('accept-policy').checked = false;
+
+    // Restablecer UI
+    document.getElementById('steps-indicator').style.display = 'flex';
+    document.getElementById('wizard-step-success').style.display = 'none';
+    document.getElementById('btn-step1-next').disabled = true;
+    document.getElementById('btn-step2-next').disabled = true;
+    document.getElementById('slots-container').style.display = 'none';
+
+    document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
+
+    this.updateStepUI();
+  }
+};
+
+
+// ═══════════════════════════════════════════════════════════
+// VISTA DE CANCELACIÓN / REAGENDAMIENTO
+// ═══════════════════════════════════════════════════════════
+
+const cancelView = {
+  token: null,
+  mode: null, // 'cancelar' o 'reagendar'
+  citaData: null,
+  calYear: null,
+  calMonth: null,
+  selectedDate: null,
+  selectedTime: null,
+
+  init: function(token, mode) {
+    this.token = token;
+    this.mode = mode;
+
+    if (!token) {
+      this.showError('No se ha proporcionado un identificador de cita válido.');
+      return;
+    }
+
+    // Buscar cita por token
+    app.fetchData('getCitaPorToken', token).then(cita => {
+      if (!cita || cita.error) {
+        this.showError(cita ? cita.error : 'No se encontró la cita.');
+        return;
+      }
+
+      this.citaData = cita;
+      this.renderDetails(cita);
+    }).catch(err => {
+      console.error('Error buscando cita:', err);
+      this.showError('No se pudo conectar con el servidor. Intenta más tarde.');
+    });
+  },
+
+  renderDetails: function(cita) {
+    document.getElementById('cancel-loading').style.display = 'none';
+    document.getElementById('cancel-details').style.display = 'block';
+
+    // Rellenar datos
+    document.getElementById('cancel-service').textContent = cita.servicio_nombre || cita.Servicio_ID;
+    document.getElementById('cancel-date').textContent = app.formatDate(cita.Fecha);
+    document.getElementById('cancel-time').textContent = cita.Hora_Inicio;
+    document.getElementById('cancel-name').textContent = cita.Cliente_Nombre;
+
+    // Mostrar botón reagendar si corresponde
+    if (this.mode === 'reagendar') {
+      document.getElementById('cancel-view-title').textContent = 'Reagendar cita';
+      document.getElementById('cancel-view-subtitle').textContent = '¿Quieres cambiar la fecha u hora de tu cita?';
+      document.getElementById('cancel-view-icon').className = 'ri-calendar-2-line';
+      document.getElementById('btn-cancel-confirm').style.display = 'none';
+      document.getElementById('btn-reagendar').style.display = 'flex';
+    } else {
+      document.getElementById('btn-reagendar').style.display = 'flex';
+    }
+  },
+
+  confirmCancel: function() {
+    if (!app.confirm('¿Estás seguro de que quieres cancelar tu cita?')) return;
+
+    app.showLoader('Cancelando cita...');
+    app.fetchData('cancelarReserva', this.token).then(result => {
+      app.hideLoader();
+      if (result && result.success) {
+        document.getElementById('cancel-details').style.display = 'none';
+        document.getElementById('cancel-success').style.display = 'block';
+        document.getElementById('cancel-success-title').textContent = 'Cita cancelada';
+        document.getElementById('cancel-success-message').textContent = 'Tu cita ha sido cancelada correctamente. Te hemos enviado un email de confirmación.';
+      } else {
+        app.showToast(result.message || 'No se pudo cancelar la cita', 'error');
+      }
+    }).catch(err => {
+      app.hideLoader();
+      app.showToast('Error de conexión. Intenta de nuevo.', 'error');
+    });
+  },
+
+  startReagendar: function() {
+    document.getElementById('cancel-actions').style.display = 'none';
+    document.getElementById('cancel-cita-info').style.display = 'none';
+    document.getElementById('reagendar-section').style.display = 'block';
+
+    document.getElementById('cancel-view-title').textContent = 'Reagendar cita';
+    document.getElementById('cancel-view-subtitle').textContent = 'Elige nueva fecha y hora';
+    document.getElementById('cancel-view-icon').className = 'ri-calendar-2-line';
+
+    // Inicializar calendario de reagendamiento
+    var now = new Date();
+    this.calYear = now.getFullYear();
+    this.calMonth = now.getMonth();
+    this.renderReagCalendar();
+  },
+
+  backToCancel: function() {
+    document.getElementById('cancel-actions').style.display = 'flex';
+    document.getElementById('cancel-cita-info').style.display = 'block';
+    document.getElementById('reagendar-section').style.display = 'none';
+
+    document.getElementById('cancel-view-title').textContent = this.mode === 'reagendar' ? 'Reagendar cita' : 'Cancelar cita';
+    document.getElementById('cancel-view-subtitle').textContent = this.mode === 'reagendar' ? '¿Quieres cambiar la fecha u hora de tu cita?' : '¿Estás seguro de que quieres cancelar tu cita?';
+  },
+
+  renderReagCalendar: function() {
+    var year = this.calYear;
+    var month = this.calMonth;
+
+    var label = document.getElementById('reag-cal-month-label');
+    if (label) label.textContent = app.MESES[month] + ' ' + year;
+
+    var grid = document.getElementById('reag-calendar-grid');
+    if (!grid) return;
+
+    var html = '';
+    app.DIAS_CORTOS.forEach(d => { html += '<div class="calendar-weekday">' + d + '</div>'; });
+
+    var firstDay = new Date(year, month, 1);
+    var startDay = firstDay.getDay();
+    startDay = startDay === 0 ? 6 : startDay - 1;
+
+    for (var i = 0; i < startDay; i++) { html += '<div class="calendar-day empty"></div>'; }
+
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+
+    for (var d = 1; d <= daysInMonth; d++) {
+      var date = new Date(year, month, d); date.setHours(0, 0, 0, 0);
+      var classes = 'calendar-day';
+      var isDisabled = date < today;
+      var isToday = date.getTime() === today.getTime();
+      var isSelected = this.selectedDate && this.selectedDate === app.dateToString(date);
+
+      if (isDisabled) classes += ' disabled';
+      if (isToday) classes += ' today';
+      if (isSelected) classes += ' selected';
+
+      var dateStr = app.dateToString(date);
+      var onclick = isDisabled ? '' : ' onclick="cancelView.selectReagDate(\'' + dateStr + '\')"';
+      html += '<div class="' + classes + '" data-date="' + dateStr + '"' + onclick + '>' + d + '</div>';
+    }
+
+    grid.innerHTML = html;
+  },
+
+  prevMonth: function() {
+    this.calMonth--;
+    if (this.calMonth < 0) { this.calMonth = 11; this.calYear--; }
+    this.renderReagCalendar();
+  },
+
+  nextMonth: function() {
+    this.calMonth++;
+    if (this.calMonth > 11) { this.calMonth = 0; this.calYear++; }
+    this.renderReagCalendar();
+  },
+
+  selectReagDate: function(dateStr) {
+    this.selectedDate = dateStr;
+    this.selectedTime = null;
+    document.getElementById('btn-reagendar-confirm').disabled = true;
+
+    document.querySelectorAll('#reag-calendar-grid .calendar-day').forEach(el => el.classList.remove('selected'));
+    var dayEl = document.querySelector('#reag-calendar-grid .calendar-day[data-date="' + dateStr + '"]');
+    if (dayEl) dayEl.classList.add('selected');
+
+    var dateLabel = document.getElementById('reag-selected-date-label');
+    if (dateLabel) dateLabel.textContent = app.formatDate(dateStr);
+
+    this.loadReagSlots(dateStr);
+  },
+
+  loadReagSlots: function(dateStr) {
+    var container = document.getElementById('reag-slots-container');
+    var content = document.getElementById('reag-slots-content');
+    if (!container || !content) return;
+
+    container.style.display = 'block';
+    content.innerHTML = '<div class="slots-loading"><div class="mini-spinner"></div><p class="text-muted text-sm">Buscando horas...</p></div>';
+
+    var serviceId = this.citaData ? this.citaData.Servicio_ID : null;
+
+    app.fetchData('getAvailableSlots', dateStr, serviceId).then(slots => {
+      if (!slots || slots.length === 0) {
+        content.innerHTML = '<div class="slots-empty"><i class="ri-calendar-close-line"></i>No hay horas disponibles</div>';
+        return;
+      }
+      var html = '<div class="slots-grid">';
+      slots.forEach(slot => {
+        var classes = 'slot-btn';
+        if (!slot.disponible) classes += ' disabled';
+        var onclick = slot.disponible ? ' onclick="cancelView.selectReagSlot(\'' + slot.hora + '\')"' : '';
+        html += '<button class="' + classes + '" data-time="' + slot.hora + '"' + onclick + '>' + slot.hora + '</button>';
+      });
+      html += '</div>';
+      content.innerHTML = html;
+    }).catch(err => {
+      content.innerHTML = '<div class="slots-empty"><i class="ri-error-warning-line"></i>Error al cargar horas</div>';
+    });
+  },
+
+  selectReagSlot: function(time) {
+    this.selectedTime = time;
+    document.querySelectorAll('#reag-slots-content .slot-btn').forEach(b => b.classList.remove('selected'));
+    var btn = document.querySelector('#reag-slots-content .slot-btn[data-time="' + time + '"]');
+    if (btn) btn.classList.add('selected');
+    document.getElementById('btn-reagendar-confirm').disabled = false;
+  },
+
+  confirmReagendar: function() {
+    if (!this.selectedDate || !this.selectedTime) return;
+
+    app.showLoader('Reagendando cita...');
+    app.fetchData('reagendarReserva', this.token, this.selectedDate, this.selectedTime).then(result => {
+      app.hideLoader();
+      if (result && result.success) {
+        document.getElementById('cancel-details').style.display = 'none';
+        document.getElementById('cancel-success').style.display = 'block';
+        document.getElementById('cancel-success-title').textContent = '¡Cita reagendada!';
+        document.getElementById('cancel-success-message').textContent =
+          'Tu cita ha sido reprogramada para el ' + app.formatDate(this.selectedDate) + ' a las ' + this.selectedTime + '. Te hemos enviado un email de confirmación.';
+      } else {
+        app.showToast(result.message || 'No se pudo reagendar', 'error');
+      }
+    }).catch(err => {
+      app.hideLoader();
+      app.showToast('Error de conexión. Intenta de nuevo.', 'error');
+    });
+  },
+
+  showError: function(msg) {
+    document.getElementById('cancel-loading').style.display = 'none';
+    document.getElementById('cancel-error').style.display = 'block';
+    document.getElementById('cancel-error-message').textContent = msg;
+  }
+};
+
+
+// ═══════════════════════════════════════════════════════════
+// INICIALIZACIÓN
+// ═══════════════════════════════════════════════════════════
+
+function initReservaView(preselectedService) {
+  reserva.init(preselectedService);
+}
+
+function initCancelView(token, mode) {
+  cancelView.init(token, mode);
+}
+</script>

@@ -1,0 +1,103 @@
+<!-- ═══════════════════════════════════════════════════════════
+     View_Dashboard.html — Panel de control con KPIs
+     ═══════════════════════════════════════════════════════════ -->
+
+<!-- KPIs -->
+<div class="kpi-grid" id="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-icon teal"><i class="ri-calendar-check-line"></i></div>
+    <div class="kpi-value" id="kpi-hoy">-</div>
+    <div class="kpi-label">Citas hoy</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon blue"><i class="ri-calendar-2-line"></i></div>
+    <div class="kpi-value" id="kpi-semana">-</div>
+    <div class="kpi-label">Esta semana</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon green"><i class="ri-calendar-todo-line"></i></div>
+    <div class="kpi-value" id="kpi-pendientes">-</div>
+    <div class="kpi-label">Pendientes</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon orange"><i class="ri-close-circle-line"></i></div>
+    <div class="kpi-value" id="kpi-cancelaciones">-</div>
+    <div class="kpi-label">Cancelaciones (mes)</div>
+  </div>
+</div>
+
+<!-- Calendario Semanal -->
+<div class="card" style="margin-bottom: 24px;">
+  <div class="card-header">
+    <h3 class="card-title"><i class="ri-calendar-event-line"></i> Calendario Semanal</h3>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <button class="btn btn-sm btn-secondary" onclick="admin.changeCalendarWeek(-1)"><i class="ri-arrow-left-s-line"></i> Anterior</button>
+      <div id="weekly-calendar-header" style="font-weight: 500; color: var(--text-dark); min-width: 200px; text-align: center;"></div>
+      <button class="btn btn-sm btn-secondary" onclick="admin.changeCalendarWeek(1)">Siguiente <i class="ri-arrow-right-s-line"></i></button>
+      <button class="btn btn-sm btn-secondary" onclick="admin.changeCalendarWeek(0)" style="margin-left: 8px;"><i class="ri-refresh-line"></i> Hoy</button>
+    </div>
+  </div>
+  <div class="card-body" style="padding: 16px;">
+    <div class="weekly-calendar-container">
+      <div id="weekly-calendar-grid" class="weekly-calendar">
+        <!-- El calendario se renderiza desde JS -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Próximas citas -->
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title"><i class="ri-calendar-check-line"></i> Próximas citas</h3>
+    <button class="btn btn-sm btn-secondary" onclick="admin.navigate('citas', document.querySelector('.nav-item:nth-child(2)'))">
+      Ver todas <i class="ri-arrow-right-s-line"></i>
+    </button>
+  </div>
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Hora</th>
+          <th>Cliente</th>
+          <th>Servicio</th>
+          <th>Tipo</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody id="dashboard-proximas-tbody">
+        <tr>
+          <td colspan="6" class="text-center text-muted" style="padding: 32px;">
+            <i class="ri-calendar-line" style="font-size: 24px; display: block; margin-bottom: 8px; opacity: 0.3;"></i>
+            Cargando próximas citas...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Acciones rápidas -->
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title"><i class="ri-flashlight-line"></i> Acciones rápidas</h3>
+  </div>
+  <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+    <button class="btn btn-primary btn-sm" onclick="admin.openNewCitaModal()">
+      <i class="ri-add-line"></i> Nueva cita manual
+    </button>
+    <button class="btn btn-secondary btn-sm" onclick="admin.navigate('horarios', document.querySelector('.nav-item:nth-child(3)')); setTimeout(() => admin.openBloqueoRango(), 300);">
+      <i class="ri-calendar-close-line"></i> Bloquear días
+    </button>
+    <button class="btn btn-secondary btn-sm" onclick="admin.copyPublicLink()">
+      <i class="ri-link"></i> Copiar enlace público
+    </button>
+    <button class="btn btn-secondary btn-sm" onclick="admin.copyPublicLink(1)">
+      <i class="ri-link"></i> Enlace: Consulta
+    </button>
+    <button class="btn btn-secondary btn-sm" onclick="admin.copyPublicLink(2)">
+      <i class="ri-link"></i> Enlace: Domicilio
+    </button>
+  </div>
+</div>

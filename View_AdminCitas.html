@@ -1,0 +1,70 @@
+<!-- ═══════════════════════════════════════════════════════════
+     View_AdminCitas.html — Gestión de citas
+     ═══════════════════════════════════════════════════════════ -->
+
+<!-- Filtros -->
+<div class="card" style="padding: 16px 24px;">
+  <div class="filters-bar">
+    <div class="filter-group">
+      <label>Desde:</label>
+      <input type="date" id="filter-fecha-desde" class="form-control" onchange="admin.filterCitas()">
+    </div>
+    <div class="filter-group">
+      <label>Hasta:</label>
+      <input type="date" id="filter-fecha-hasta" class="form-control" onchange="admin.filterCitas()">
+    </div>
+    <div class="filter-group">
+      <label>Estado:</label>
+      <select id="filter-estado" class="form-control" onchange="admin.filterCitas()">
+        <option value="">Todos</option>
+        <option value="confirmada">Confirmada</option>
+        <option value="cancelada">Cancelada</option>
+        <option value="completada">Completada</option>
+        <option value="no_show">No presentado</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Tipo:</label>
+      <select id="filter-tipo" class="form-control" onchange="admin.filterCitas()">
+        <option value="">Todos</option>
+        <option value="consulta">Consulta</option>
+        <option value="domicilio">Domicilio</option>
+      </select>
+    </div>
+    <button class="btn btn-sm btn-secondary" onclick="admin.resetCitaFilters()">
+      <i class="ri-refresh-line"></i> Limpiar
+    </button>
+  </div>
+</div>
+
+<!-- Tabla de citas -->
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title"><i class="ri-calendar-check-line"></i> Todas las citas</h3>
+    <span class="text-muted text-sm" id="citas-count"></span>
+  </div>
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Hora</th>
+          <th>Cliente</th>
+          <th>Teléfono</th>
+          <th>Servicio</th>
+          <th>Tipo</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="citas-tbody">
+        <tr>
+          <td colspan="8" class="text-center text-muted" style="padding: 40px;">
+            <i class="ri-calendar-line" style="font-size: 32px; display: block; margin-bottom: 8px; opacity: 0.3;"></i>
+            Cargando citas...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

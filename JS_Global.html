@@ -1,0 +1,159 @@
+<script>
+/**
+ * JS_Global.html — Utilidades compartidas entre vista pública y admin.
+ * Patrón de app singleton con helpers reutilizables.
+ */
+
+const app = {
+  // ─── Estado global ───
+  state: {
+    config: {},
+    servicios: [],
+    horarios: [],
+    citas: [],
+    clientes: [],
+    excepciones: []
+  },
+
+  // ─── Wrapper de google.script.run como Promise ───
+  fetchData: function(serverFunctionName, ...args) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(result => {
+          if (result && result.error) reject(result.error);
+          else resolve(result);
+        })
+        .withFailureHandler(error => reject(error))
+        [serverFunctionName](...args);
+    });
+  },
+
+  // ─── Loader ───
+  showLoader: function(msg) {
+    const loader = document.getElementById('global-loader');
+    if (!loader) return;
+    const textEl = loader.querySelector('.loader-text');
+    if (textEl && msg) textEl.textContent = msg;
+    loader.style.display = 'flex';
+  },
+
+  hideLoader: function() {
+    const loader = document.getElementById('global-loader');
+    if (loader) loader.style.display = 'none';
+  },
+
+  // ─── Toast ───
+  showToast: function(msg, type) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = 'toast' + (type ? ' toast-' + type : '');
+    toast.textContent = msg;
+    container.appendChild(toast);
+
+    requestAnimationFrame(() => toast.classList.add('show'));
+
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
+    }, 3500);
+  },
+
+  // ─── Formato de Fechas ───
+  formatDate: function(dateStr) {
+    if (!dateStr) return '';
+    
+    var d = new Date(dateStr);
+    if (typeof dateStr === 'string' && dateStr.length === 10 && dateStr.includes('-')) {
+      var parts = dateStr.split('-');
+      d = new Date(parts[0], parts[1] - 1, parts[2]);
+    }
+    
+    if (isNaN(d.getTime())) return dateStr;
+    var dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    var meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+                 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+    return dias[d.getDay()] + ', ' + d.getDate() + ' de ' + meses[d.getMonth()] + ' de ' + d.getFullYear();
+  },
+
+  formatDateShort: function(dateStr) {
+    if (!dateStr) return '';
+    
+    if (typeof dateStr === 'string' && dateStr.length === 10 && dateStr.includes('-')) {
+      var parts = dateStr.split('-');
+      return parts[2] + '/' + parts[1] + '/' + parts[0];
+    }
+    
+    var d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.getDate().toString().padStart(2, '0') + '/' +
+           (d.getMonth() + 1).toString().padStart(2, '0') + '/' +
+           d.getFullYear();
+  },
+
+  formatTime: function(timeStr) {
+    if (!timeStr) return '';
+    return timeStr.substring(0, 5);
+  },
+
+  // ─── Generar UUID ───
+  uuid: function() {
+    return 'xxxx-xxxx-xxxx'.replace(/x/g, function() {
+      return Math.floor(Math.random() * 16).toString(16);
+    });
+  },
+
+  // ─── Nombres de día y mes en español ───
+  DIAS_SEMANA: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'],
+  DIAS_CORTOS: ['L', 'M', 'X', 'J', 'V', 'S', 'D'],
+  MESES: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+          'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+
+  // ─── Obtener nombre de día de la semana (Lunes=0, Domingo=6) ───
+  getDayOfWeekName: function(date) {
+    var d = new Date(date);
+    // JS: 0=Domingo, queremos 0=Lunes
+    var jsDay = d.getDay();
+    var idx = jsDay === 0 ? 6 : jsDay - 1;
+    return this.DIAS_SEMANA[idx];
+  },
+
+  // ─── Convertir fecha a string YYYY-MM-DD ───
+  dateToString: function(date) {
+    var d = new Date(date);
+    return d.getFullYear() + '-' +
+           (d.getMonth() + 1).toString().padStart(2, '0') + '-' +
+           d.getDate().toString().padStart(2, '0');
+  },
+
+  // ─── Escapar HTML ───
+  escapeHtml: function(str) {
+    if (!str) return '';
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  },
+
+  // ─── Abrir modal ───
+  openModal: function(modalId) {
+    var modal = document.getElementById(modalId);
+    if (modal) {
+      modal.classList.add('show');
+      document.body.style.overflow = 'hidden';
+    }
+  },
+
+  closeModal: function(modalId) {
+    var modal = document.getElementById(modalId);
+    if (modal) {
+      modal.classList.remove('show');
+      document.body.style.overflow = '';
+    }
+  },
+
+  // ─── Confirmar acción ───
+  confirm: function(msg) {
+    return window.confirm(msg);
+  }
+};
+</script>

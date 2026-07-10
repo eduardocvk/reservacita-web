@@ -1,0 +1,85 @@
+<!-- ═══════════════════════════════════════════════════════════
+     View_AdminClientes.html — Base de datos de clientes
+     ═══════════════════════════════════════════════════════════ -->
+
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title"><i class="ri-user-heart-line"></i> Clientes</h3>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <div class="filter-group">
+        <input type="text" id="clientes-search" class="form-control" placeholder="Buscar cliente..."
+               oninput="admin.filterClientes()" style="width: 220px;">
+      </div>
+      <span class="text-muted text-sm" id="clientes-count"></span>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Email</th>
+          <th>Teléfono</th>
+          <th>Nº Citas</th>
+          <th>Última cita</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="clientes-tbody">
+        <tr>
+          <td colspan="6" class="text-center text-muted" style="padding: 40px;">
+            <i class="ri-user-line" style="font-size: 32px; display: block; margin-bottom: 8px; opacity: 0.3;"></i>
+            Cargando clientes...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal: Detalle del Cliente -->
+<div class="modal-overlay" id="modal-detalle-cliente">
+  <div class="modal-content" style="max-width: 600px;">
+    <div class="modal-header">
+      <h3 class="modal-title"><i class="ri-user-heart-line text-primary"></i> <span id="cliente-detail-nombre">Detalle del cliente</span></h3>
+      <button class="modal-close" onclick="app.closeModal('modal-detalle-cliente')">
+        <i class="ri-close-line"></i>
+      </button>
+    </div>
+
+    <!-- Datos del cliente -->
+    <div id="cliente-detail-info" style="margin-bottom: 20px;">
+      <!-- Se rellena dinámicamente -->
+    </div>
+
+    <!-- Historial de citas -->
+    <h4 style="font-size: 15px; font-weight: 600; margin-bottom: 12px;">
+      <i class="ri-history-line text-primary"></i> Historial de citas
+    </h4>
+    <div class="table-responsive">
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Hora</th>
+            <th>Servicio</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="cliente-historial-tbody">
+          <tr>
+            <td colspan="4" class="text-center text-muted">Sin citas registradas</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="app.closeModal('modal-detalle-cliente')">Cerrar</button>
+      <button class="btn btn-primary btn-sm" id="btn-agendar-cliente" onclick="admin.agendarParaCliente()">
+        <i class="ri-calendar-check-line"></i> Agendar cita
+      </button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,231 @@
+<!-- ═══════════════════════════════════════════════════════════
+     View_Reserva.html — Wizard de reserva en 4 pasos
+     ═══════════════════════════════════════════════════════════ -->
+
+<!-- Indicador de pasos -->
+<div class="steps-indicator" id="steps-indicator">
+  <div class="step-item">
+    <div class="step-circle active" data-step="1">1</div>
+  </div>
+  <div class="step-item">
+    <div class="step-line" data-line="1"></div>
+    <div class="step-circle" data-step="2">2</div>
+  </div>
+  <div class="step-item">
+    <div class="step-line" data-line="2"></div>
+    <div class="step-circle" data-step="3">3</div>
+  </div>
+  <div class="step-item">
+    <div class="step-line" data-line="3"></div>
+    <div class="step-circle" data-step="4">4</div>
+  </div>
+</div>
+
+<!-- ─── Paso 1: Elegir Servicio ─── -->
+<div class="wizard-step active" id="wizard-step-1">
+  <h2 class="step-title">Elige tu servicio</h2>
+  <p class="step-subtitle">Selecciona el tipo de sesión que prefieres</p>
+
+  <div class="services-grid" id="services-grid">
+    <!-- Se rellena dinámicamente desde JS_Reserva -->
+    <div class="slots-loading">
+      <div class="mini-spinner"></div>
+      <p class="text-muted text-sm">Cargando servicios...</p>
+    </div>
+  </div>
+
+  <div class="wizard-nav">
+    <div></div>
+    <button class="btn btn-primary btn-lg" id="btn-step1-next" disabled onclick="reserva.nextStep()">
+      Siguiente <i class="ri-arrow-right-line"></i>
+    </button>
+  </div>
+</div>
+
+<!-- ─── Paso 2: Elegir Fecha y Hora ─── -->
+<div class="wizard-step" id="wizard-step-2">
+  <h2 class="step-title">Elige fecha y hora</h2>
+  <p class="step-subtitle">Selecciona el día y la hora que mejor te venga</p>
+
+  <!-- Calendario -->
+  <div class="calendar-container">
+    <div class="calendar-header">
+      <button class="calendar-nav-btn" id="cal-prev" onclick="reserva.prevMonth()">
+        <i class="ri-arrow-left-s-line"></i>
+      </button>
+      <span class="calendar-month-label" id="cal-month-label"></span>
+      <button class="calendar-nav-btn" id="cal-next" onclick="reserva.nextMonth()">
+        <i class="ri-arrow-right-s-line"></i>
+      </button>
+    </div>
+    <div class="calendar-grid" id="calendar-grid">
+      <!-- Se rellena dinámicamente -->
+    </div>
+  </div>
+
+  <!-- Slots de hora -->
+  <div class="slots-container" id="slots-container" style="display: none;">
+    <div class="slots-label">
+      <i class="ri-time-line"></i>
+      <span>Horas disponibles para el <span id="selected-date-label"></span></span>
+    </div>
+    <div id="slots-content">
+      <!-- Se rellena dinámicamente -->
+    </div>
+  </div>
+
+  <div class="wizard-nav">
+    <button class="btn btn-secondary" onclick="reserva.prevStep()">
+      <i class="ri-arrow-left-line"></i> Anterior
+    </button>
+    <button class="btn btn-primary btn-lg" id="btn-step2-next" disabled onclick="reserva.nextStep()">
+      Siguiente <i class="ri-arrow-right-line"></i>
+    </button>
+  </div>
+</div>
+
+<!-- ─── Paso 3: Datos del Cliente ─── -->
+<div class="wizard-step" id="wizard-step-3">
+  <h2 class="step-title">Tus datos</h2>
+  <p class="step-subtitle">Necesitamos algunos datos para confirmar tu cita</p>
+
+  <div class="form-section">
+    <div class="form-group">
+      <label for="client-name">Nombre completo <span class="required">*</span></label>
+      <input type="text" id="client-name" class="form-control" placeholder="Tu nombre y apellidos" required>
+      <div class="form-error" id="error-name">Por favor, introduce tu nombre</div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label for="client-email">Email <span class="required">*</span></label>
+        <input type="email" id="client-email" class="form-control" placeholder="tu@email.com" required>
+        <div class="form-error" id="error-email">Introduce un email válido</div>
+      </div>
+      <div class="form-group">
+        <label for="client-phone">Teléfono <span class="required">*</span></label>
+        <input type="tel" id="client-phone" class="form-control" placeholder="+34 600 000 000" required>
+        <div class="form-error" id="error-phone">Introduce un teléfono válido</div>
+      </div>
+    </div>
+
+    <!-- Campo de dirección (solo visible para domicilio) -->
+    <div class="form-group" id="address-group" style="display: none;">
+      <label for="client-address">Dirección del domicilio <span class="required">*</span></label>
+      <input type="text" id="client-address" class="form-control" placeholder="Calle, número, piso, ciudad...">
+      <div class="form-hint">Introduce la dirección completa para calcular el tiempo de desplazamiento</div>
+      <div class="form-error" id="error-address">Por favor, introduce la dirección</div>
+    </div>
+
+    <div class="form-group">
+      <label for="client-notes">Notas o comentarios <span class="text-muted">(opcional)</span></label>
+      <textarea id="client-notes" class="form-control" placeholder="¿Hay algo que quieras que sepamos antes de la cita?" rows="3"></textarea>
+    </div>
+
+    <!-- Política de cancelación -->
+    <div class="checkbox-group">
+      <input type="checkbox" id="accept-policy">
+      <label for="accept-policy">
+        He leído y acepto la <strong>política de cancelación</strong>:
+        <span class="text-muted" id="policy-text">Puedes cancelar o reagendar tu cita hasta 4 horas antes de la hora programada.</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="wizard-nav">
+    <button class="btn btn-secondary" onclick="reserva.prevStep()">
+      <i class="ri-arrow-left-line"></i> Anterior
+    </button>
+    <button class="btn btn-primary btn-lg" id="btn-step3-next" onclick="reserva.nextStep()">
+      Revisar resumen <i class="ri-arrow-right-line"></i>
+    </button>
+  </div>
+</div>
+
+<!-- ─── Paso 4: Confirmación ─── -->
+<div class="wizard-step" id="wizard-step-4">
+  <h2 class="step-title">Confirma tu cita</h2>
+  <p class="step-subtitle">Revisa los datos antes de confirmar</p>
+
+  <div class="booking-summary" id="booking-summary">
+    <div class="summary-row">
+      <span class="summary-label">Servicio</span>
+      <span class="summary-value" id="summary-service"></span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-label">Tipo</span>
+      <span class="summary-value" id="summary-type"></span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-label">Fecha</span>
+      <span class="summary-value" id="summary-date"></span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-label">Hora</span>
+      <span class="summary-value" id="summary-time"></span>
+    </div>
+    <div class="summary-row" id="summary-address-row" style="display: none;">
+      <span class="summary-label">Dirección</span>
+      <span class="summary-value" id="summary-address"></span>
+    </div>
+    <div class="summary-row" id="summary-travel-row" style="display: none;">
+      <span class="summary-label">Desplazamiento estimado</span>
+      <span class="summary-value" id="summary-travel"></span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-label">Nombre</span>
+      <span class="summary-value" id="summary-name"></span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-label">Email</span>
+      <span class="summary-value" id="summary-email"></span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-label">Teléfono</span>
+      <span class="summary-value" id="summary-phone"></span>
+    </div>
+    <div class="summary-row" id="summary-notes-row" style="display: none;">
+      <span class="summary-label">Notas</span>
+      <span class="summary-value" id="summary-notes"></span>
+    </div>
+    <div class="summary-total">
+      <span class="summary-label">Precio</span>
+      <span class="summary-value" id="summary-price"></span>
+    </div>
+  </div>
+
+  <div class="wizard-nav">
+    <button class="btn btn-secondary" onclick="reserva.prevStep()">
+      <i class="ri-arrow-left-line"></i> Modificar
+    </button>
+    <button class="btn btn-primary btn-lg" id="btn-confirm" onclick="reserva.submitReservation()">
+      <i class="ri-check-line"></i> Confirmar Reserva
+    </button>
+  </div>
+</div>
+
+<!-- ─── Pantalla de Éxito ─── -->
+<div class="wizard-step" id="wizard-step-success" style="display: none;">
+  <div class="success-screen">
+    <div class="success-icon">
+      <i class="ri-check-line"></i>
+    </div>
+    <h2 class="success-title">¡Reserva confirmada!</h2>
+    <p class="success-message">
+      Te hemos enviado un email de confirmación a <strong id="success-email"></strong>
+    </p>
+
+    <div class="success-details" id="success-details">
+      <!-- Datos de la cita confirmada -->
+    </div>
+
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 12px;">
+      <a href="https://wa.me/34676435634" target="_blank" class="success-whatsapp">
+        <i class="ri-whatsapp-line"></i> ¿Dudas? Contacta por WhatsApp
+      </a>
+      <button class="btn btn-secondary" onclick="reserva.reset()">
+        <i class="ri-add-line"></i> Hacer otra reserva
+      </button>
+    </div>
+  </div>
+</div>

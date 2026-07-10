@@ -1,0 +1,86 @@
+<!-- ═══════════════════════════════════════════════════════════
+     View_AdminServicios.html — Gestión de servicios
+     ═══════════════════════════════════════════════════════════ -->
+
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title"><i class="ri-stethoscope-line"></i> Servicios</h3>
+    <button class="btn btn-primary btn-sm" onclick="admin.openServicioModal()">
+      <i class="ri-add-line"></i> Nuevo servicio
+    </button>
+  </div>
+
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Tipo</th>
+          <th>Duración</th>
+          <th>Precio</th>
+          <th>Activo</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="servicios-tbody">
+        <tr>
+          <td colspan="6" class="text-center text-muted" style="padding: 32px;">
+            Cargando servicios...
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal: Crear/Editar Servicio -->
+<div class="modal-overlay" id="modal-servicio">
+  <div class="modal-content" style="max-width: 500px;">
+    <div class="modal-header">
+      <h3 class="modal-title" id="modal-servicio-title">
+        <i class="ri-stethoscope-line text-primary"></i> Nuevo servicio
+      </h3>
+      <button class="modal-close" onclick="app.closeModal('modal-servicio')">
+        <i class="ri-close-line"></i>
+      </button>
+    </div>
+
+    <input type="hidden" id="svc-edit-id">
+
+    <div class="form-group">
+      <label>Nombre del servicio <span class="required">*</span></label>
+      <input type="text" id="svc-nombre" class="form-control" placeholder="Ej: Sesión de osteopatía">
+    </div>
+
+    <div class="form-group">
+      <label>Descripción</label>
+      <textarea id="svc-descripcion" class="form-control" rows="2" placeholder="Descripción breve del servicio..."></textarea>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Tipo <span class="required">*</span></label>
+        <select id="svc-tipo" class="form-control">
+          <option value="consulta">En consulta</option>
+          <option value="domicilio">A domicilio</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Duración (minutos) <span class="required">*</span></label>
+        <input type="number" id="svc-duracion" class="form-control" value="60" min="15" step="15">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Precio (€) <span class="required">*</span></label>
+      <input type="number" id="svc-precio" class="form-control" value="40" min="0" step="5">
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="app.closeModal('modal-servicio')">Cancelar</button>
+      <button class="btn btn-primary" onclick="admin.saveServicio()">
+        <i class="ri-check-line"></i> Guardar
+      </button>
+    </div>
+  </div>
+</div>

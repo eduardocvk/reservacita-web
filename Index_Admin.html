@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <title>Admin — ReservaCita Eduardo Callejo</title>
+
+  <!-- Tipografías -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Iconos -->
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+
+  <!-- CSS -->
+  <?!= include('CSS'); ?>
+</head>
+<body class="admin-body">
+
+  <!-- ─── Pantalla de Login ─── -->
+  <div id="login-screen" style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #F8FAFB; width: 100%;">
+    <div class="card" style="background: #fff; border-radius: 16px; padding: 48px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.08); max-width: 400px; width: 100%;">
+      <div class="icon" style="font-size: 48px; margin-bottom: 16px;">🔒</div>
+      <h2 style="color: #264653; margin: 0 0 8px;">Panel de Administración</h2>
+      <p style="color: #8E8E9E; margin: 0 0 24px; font-size: 14px;">Introduce la contraseña para acceder.</p>
+      <div class="form-group" style="text-align: left;">
+        <input type="password" id="admin-password" class="form-control" placeholder="Contraseña..." onkeypress="if(event.key === 'Enter') admin.login()">
+      </div>
+      <button class="btn btn-primary" style="width: 100%; margin-top: 16px;" onclick="admin.login()">
+        <i class="ri-login-box-line"></i> Acceder
+      </button>
+      <p id="login-error" style="color: #E63946; margin-top: 16px; font-size: 14px; display: none;">Contraseña incorrecta</p>
+    </div>
+  </div>
+
+  <div class="app-container" id="app-wrapper" style="display: none;">
+    <!-- Overlay móvil -->
+    <div class="sidebar-overlay" onclick="admin.toggleMobileMenu()"></div>
+
+    <!-- ─── Sidebar ─── -->
+    <aside class="sidebar" id="admin-sidebar">
+      <div class="sidebar-header">
+        <img src="https://osteopatiamadrid.com/lovable-uploads/eduardo-callejo-logo.png"
+             alt="Logo" class="sidebar-logo">
+        <h2>ReservaCita <span>Panel de Administración</span></h2>
+      </div>
+
+      <ul class="nav-links">
+        <li class="nav-item active" onclick="admin.navigate('dashboard', this)">
+          <i class="ri-dashboard-line"></i> Dashboard
+        </li>
+        <li class="nav-item" onclick="admin.navigate('citas', this)">
+          <i class="ri-calendar-check-line"></i> Citas
+        </li>
+        <li class="nav-item" onclick="admin.navigate('horarios', this)">
+          <i class="ri-time-line"></i> Horarios
+        </li>
+        <li class="nav-item" onclick="admin.navigate('servicios', this)">
+          <i class="ri-stethoscope-line"></i> Servicios
+        </li>
+        <li class="nav-item" onclick="admin.navigate('clientes', this)">
+          <i class="ri-user-heart-line"></i> Clientes
+        </li>
+      </ul>
+
+      <div style="flex-grow: 1;"></div>
+
+      <ul class="nav-links" style="margin-bottom: 0;">
+        <li class="nav-item" onclick="admin.navigate('ajustes', this)">
+          <i class="ri-settings-3-line"></i> Ajustes
+        </li>
+        <li class="nav-item" onclick="window.open('https://osteopatiamadrid.com/reserva', '_blank')">
+          <i class="ri-external-link-line"></i> Ver web pública
+        </li>
+        <li class="nav-item" onclick="admin.logout()" style="color: #E63946;">
+          <i class="ri-logout-box-r-line"></i> Cerrar sesión
+        </li>
+      </ul>
+
+      <div class="sidebar-footer">
+        <p>© 2026 Eduardo Callejo</p>
+      </div>
+    </aside>
+
+    <!-- ─── Contenido Principal ─── -->
+    <main class="main-content">
+      <!-- Topbar -->
+      <header class="topbar">
+        <div style="display: flex; align-items: center;">
+          <button class="btn-mobile-menu" onclick="admin.toggleMobileMenu()">
+            <i class="ri-menu-line"></i>
+          </button>
+          <div class="topbar-title">
+            <h1 id="page-title"><i class="ri-dashboard-line"></i> Dashboard</h1>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn btn-primary btn-sm" onclick="admin.openNewCitaModal()">
+            <i class="ri-add-line"></i> Nueva cita
+          </button>
+        </div>
+      </header>
+
+      <!-- Toast Container -->
+      <div id="toast-container"></div>
+
+      <!-- Loader global -->
+      <div id="global-loader" class="loader-container" style="display: none;">
+        <div class="spinner"></div>
+        <p class="loader-text">Cargando datos...</p>
+      </div>
+
+      <!-- Vistas Dinámicas -->
+      <div class="view-container">
+        <!-- Vista Dashboard -->
+        <div id="view-dashboard" class="view active">
+          <?!= include('View_Dashboard'); ?>
+        </div>
+
+        <!-- Vista Citas -->
+        <div id="view-citas" class="view">
+          <?!= include('View_AdminCitas'); ?>
+        </div>
+
+        <!-- Vista Horarios -->
+        <div id="view-horarios" class="view">
+          <?!= include('View_AdminHorarios'); ?>
+        </div>
+
+        <!-- Vista Servicios -->
+        <div id="view-servicios" class="view">
+          <?!= include('View_AdminServicios'); ?>
+        </div>
+
+        <!-- Vista Clientes -->
+        <div id="view-clientes" class="view">
+          <?!= include('View_AdminClientes'); ?>
+        </div>
+
+        <!-- Vista Ajustes -->
+        <div id="view-ajustes" class="view">
+          <?!= include('View_AdminAjustes'); ?>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal: Nueva Cita (Admin) -->
+  <div class="modal-overlay" id="modal-nueva-cita">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="ri-calendar-check-line text-primary"></i> Nueva cita manual</h3>
+        <button class="modal-close" onclick="app.closeModal('modal-nueva-cita')">
+          <i class="ri-close-line"></i>
+        </button>
+      </div>
+
+      <div class="form-group">
+        <label>Servicio <span class="required">*</span></label>
+        <select id="new-cita-servicio" class="form-control">
+          <option value="">Seleccionar...</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Fecha <span class="required">*</span></label>
+          <input type="date" id="new-cita-fecha" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>Hora <span class="required">*</span></label>
+          <input type="time" id="new-cita-hora" class="form-control" step="900">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Nombre del cliente <span class="required">*</span></label>
+        <input type="text" id="new-cita-nombre" class="form-control" placeholder="Nombre completo">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Email <span class="text-muted text-sm">(opcional)</span></label>
+          <input type="email" id="new-cita-email" class="form-control" placeholder="email@ejemplo.com">
+        </div>
+        <div class="form-group">
+          <label>Teléfono</label>
+          <input type="tel" id="new-cita-telefono" class="form-control" placeholder="+34...">
+        </div>
+      </div>
+
+      <div class="form-group" id="new-cita-direccion-group" style="display: none;">
+        <label>Dirección (domicilio)</label>
+        <input type="text" id="new-cita-direccion" class="form-control" placeholder="Calle, número, ciudad...">
+      </div>
+
+      <div class="form-group">
+        <label>Notas</label>
+        <textarea id="new-cita-notas" class="form-control" rows="2" placeholder="Notas internas..."></textarea>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.closeModal('modal-nueva-cita')">Cancelar</button>
+        <button class="btn btn-primary" onclick="admin.saveNewCita()">
+          <i class="ri-check-line"></i> Crear cita
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Detalle de Cita -->
+  <div class="modal-overlay" id="modal-detalle-cita">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="ri-file-list-3-line text-primary"></i> Detalle de la cita</h3>
+        <button class="modal-close" onclick="app.closeModal('modal-detalle-cita')">
+          <i class="ri-close-line"></i>
+        </button>
+      </div>
+      <div id="detalle-cita-content">
+        <!-- Se rellena dinámicamente -->
+      </div>
+      <div class="modal-footer" id="detalle-cita-actions">
+        <!-- Botones de acción dinámicos -->
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript -->
+  <?!= include('JS_Global'); ?>
+  <?!= include('JS_Admin'); ?>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      admin.init();
+    });
+  </script>
+
+</body>
+</html>

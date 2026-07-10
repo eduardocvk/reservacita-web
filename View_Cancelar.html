@@ -1,0 +1,120 @@
+<!-- ═══════════════════════════════════════════════════════════
+     View_Cancelar.html — Cancelación y Reagendamiento de citas
+     ═══════════════════════════════════════════════════════════ -->
+
+<!-- Estado: Cargando -->
+<div id="cancel-loading" class="cancel-container">
+  <div class="slots-loading" style="padding: 60px 20px;">
+    <div class="mini-spinner"></div>
+    <p class="text-muted">Buscando tu cita...</p>
+  </div>
+</div>
+
+<!-- Estado: Datos de la cita (antes de cancelar/reagendar) -->
+<div id="cancel-details" class="cancel-container" style="display: none;">
+  <div class="cancel-icon warn">
+    <i class="ri-calendar-close-line" id="cancel-view-icon"></i>
+  </div>
+  <h2 class="step-title" id="cancel-view-title">Cancelar cita</h2>
+  <p class="step-subtitle" id="cancel-view-subtitle">¿Estás seguro de que quieres cancelar tu cita?</p>
+
+  <!-- Detalles de la cita -->
+  <div class="booking-summary mt-24" id="cancel-cita-info">
+    <div class="summary-row">
+      <span class="summary-label">Servicio</span>
+      <span class="summary-value" id="cancel-service"></span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-label">Fecha</span>
+      <span class="summary-value" id="cancel-date"></span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-label">Hora</span>
+      <span class="summary-value" id="cancel-time"></span>
+    </div>
+    <div class="summary-row">
+      <span class="summary-label">Nombre</span>
+      <span class="summary-value" id="cancel-name"></span>
+    </div>
+  </div>
+
+  <!-- Botones de cancelación -->
+  <div id="cancel-actions" class="mt-24" style="display: flex; flex-direction: column; gap: 12px; align-items: center;">
+    <button class="btn btn-danger btn-lg btn-block" id="btn-cancel-confirm" onclick="cancelView.confirmCancel()">
+      <i class="ri-close-circle-line"></i> Sí, cancelar mi cita
+    </button>
+    <button class="btn btn-primary btn-lg btn-block" id="btn-reagendar" onclick="cancelView.startReagendar()" style="display: none;">
+      <i class="ri-calendar-2-line"></i> Reagendar cita
+    </button>
+    <a href="https://osteopatiamadrid.com" class="btn btn-secondary">
+      Volver a la web
+    </a>
+  </div>
+
+  <!-- Reagendamiento: elegir nueva fecha/hora -->
+  <div id="reagendar-section" style="display: none;" class="mt-24">
+    <h3 class="step-title" style="font-size: 18px;">Elige nueva fecha y hora</h3>
+    <p class="step-subtitle">Selecciona cuándo prefieres tu cita</p>
+
+    <div class="calendar-container">
+      <div class="calendar-header">
+        <button class="calendar-nav-btn" onclick="cancelView.prevMonth()">
+          <i class="ri-arrow-left-s-line"></i>
+        </button>
+        <span class="calendar-month-label" id="reag-cal-month-label"></span>
+        <button class="calendar-nav-btn" onclick="cancelView.nextMonth()">
+          <i class="ri-arrow-right-s-line"></i>
+        </button>
+      </div>
+      <div class="calendar-grid" id="reag-calendar-grid"></div>
+    </div>
+
+    <div class="slots-container" id="reag-slots-container" style="display: none;">
+      <div class="slots-label">
+        <i class="ri-time-line"></i>
+        <span>Horas disponibles para el <span id="reag-selected-date-label"></span></span>
+      </div>
+      <div id="reag-slots-content"></div>
+    </div>
+
+    <div class="wizard-nav">
+      <button class="btn btn-secondary" onclick="cancelView.backToCancel()">
+        <i class="ri-arrow-left-line"></i> Volver
+      </button>
+      <button class="btn btn-primary btn-lg" id="btn-reagendar-confirm" disabled onclick="cancelView.confirmReagendar()">
+        <i class="ri-check-line"></i> Confirmar reagendamiento
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Estado: Cancelación exitosa -->
+<div id="cancel-success" class="cancel-container" style="display: none;">
+  <div class="cancel-icon ok">
+    <i class="ri-check-line"></i>
+  </div>
+  <h2 class="step-title" id="cancel-success-title">Cita cancelada</h2>
+  <p class="step-subtitle" id="cancel-success-message">Tu cita ha sido cancelada correctamente.</p>
+  <div class="mt-24" style="display: flex; flex-direction: column; gap: 12px; align-items: center;">
+    <a href="?" class="btn btn-primary btn-lg">
+      <i class="ri-calendar-check-line"></i> Reservar nueva cita
+    </a>
+    <a href="https://wa.me/34676435634" target="_blank" class="success-whatsapp">
+      <i class="ri-whatsapp-line"></i> Contactar por WhatsApp
+    </a>
+  </div>
+</div>
+
+<!-- Estado: Error -->
+<div id="cancel-error" class="cancel-container" style="display: none;">
+  <div class="cancel-icon err">
+    <i class="ri-error-warning-line"></i>
+  </div>
+  <h2 class="step-title">No se pudo procesar</h2>
+  <p class="step-subtitle" id="cancel-error-message">Ha ocurrido un error al procesar tu solicitud.</p>
+  <div class="mt-24">
+    <a href="https://wa.me/34676435634" target="_blank" class="success-whatsapp">
+      <i class="ri-whatsapp-line"></i> Contacta por WhatsApp para ayuda
+    </a>
+  </div>
+</div>

@@ -1,0 +1,156 @@
+<!-- ═══════════════════════════════════════════════════════════
+     View_AdminHorarios.html — Configuración de horarios y excepciones
+     ═══════════════════════════════════════════════════════════ -->
+
+<!-- Horarios semanales -->
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title"><i class="ri-time-line"></i> Horario semanal</h3>
+    <button class="btn btn-primary btn-sm" onclick="admin.saveHorarios()">
+      <i class="ri-save-line"></i> Guardar
+    </button>
+  </div>
+
+  <div class="table-responsive">
+    <table class="schedule-table" id="horarios-table">
+      <thead>
+        <tr>
+          <th>Día</th>
+          <th>Abierto</th>
+          <th colspan="3">Bloque mañana</th>
+          <th colspan="3">Bloque tarde</th>
+        </tr>
+      </thead>
+      <tbody id="horarios-tbody">
+        <!-- Se rellena dinámicamente. Cada fila tendrá:
+             Día | Toggle | HoraInicio1 - HoraFin1 | HoraInicio2 - HoraFin2 -->
+      </tbody>
+    </table>
+  </div>
+  <p class="text-muted text-sm mt-8">
+    <i class="ri-information-line"></i> Define dos bloques horarios por día (ej: mañana 09:00-14:00 y tarde 16:00-20:00). Deja vacío el segundo bloque si solo trabajas un turno.
+  </p>
+</div>
+
+<!-- Excepciones -->
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title"><i class="ri-calendar-close-line"></i> Excepciones (días especiales)</h3>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn btn-secondary btn-sm" onclick="admin.openBloqueoRango()">
+        <i class="ri-calendar-close-line"></i> Bloquear rango
+      </button>
+      <button class="btn btn-primary btn-sm" onclick="admin.openExcepcionModal()">
+        <i class="ri-add-line"></i> Añadir excepción
+      </button>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Tipo</th>
+          <th>Horario especial</th>
+          <th>Motivo</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="excepciones-tbody">
+        <tr>
+          <td colspan="5" class="text-center text-muted" style="padding: 32px;">
+            No hay excepciones configuradas
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal: Nueva Excepción -->
+<div class="modal-overlay" id="modal-excepcion">
+  <div class="modal-content" style="max-width: 480px;">
+    <div class="modal-header">
+      <h3 class="modal-title"><i class="ri-calendar-close-line text-primary"></i> Nueva excepción</h3>
+      <button class="modal-close" onclick="app.closeModal('modal-excepcion')">
+        <i class="ri-close-line"></i>
+      </button>
+    </div>
+
+    <div class="form-group">
+      <label>Fecha <span class="required">*</span></label>
+      <input type="date" id="exc-fecha" class="form-control">
+    </div>
+
+    <div class="form-group">
+      <label>Tipo</label>
+      <select id="exc-tipo" class="form-control" onchange="admin.toggleExcTipo()">
+        <option value="cerrado">Cerrado todo el día</option>
+        <option value="especial">Horario especial</option>
+      </select>
+    </div>
+
+    <div id="exc-horario-especial" style="display: none;">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Hora inicio</label>
+          <input type="time" id="exc-hora-inicio" class="form-control" step="900">
+        </div>
+        <div class="form-group">
+          <label>Hora fin</label>
+          <input type="time" id="exc-hora-fin" class="form-control" step="900">
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Motivo</label>
+      <input type="text" id="exc-motivo" class="form-control" placeholder="Ej: Vacaciones, festivo...">
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="app.closeModal('modal-excepcion')">Cancelar</button>
+      <button class="btn btn-primary" onclick="admin.saveExcepcion()">
+        <i class="ri-check-line"></i> Guardar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Bloquear Rango de Fechas -->
+<div class="modal-overlay" id="modal-bloqueo-rango">
+  <div class="modal-content" style="max-width: 440px;">
+    <div class="modal-header">
+      <h3 class="modal-title"><i class="ri-calendar-close-line text-primary"></i> Bloquear rango de fechas</h3>
+      <button class="modal-close" onclick="app.closeModal('modal-bloqueo-rango')">
+        <i class="ri-close-line"></i>
+      </button>
+    </div>
+
+    <p class="text-muted text-sm mb-16">Se crearán excepciones de tipo "cerrado" para cada día del rango seleccionado.</p>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>Fecha inicio <span class="required">*</span></label>
+        <input type="date" id="bloqueo-fecha-inicio" class="form-control">
+      </div>
+      <div class="form-group">
+        <label>Fecha fin <span class="required">*</span></label>
+        <input type="date" id="bloqueo-fecha-fin" class="form-control">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Motivo</label>
+      <input type="text" id="bloqueo-motivo" class="form-control" placeholder="Ej: Vacaciones de agosto">
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="app.closeModal('modal-bloqueo-rango')">Cancelar</button>
+      <button class="btn btn-primary" onclick="admin.saveBloqueoRango()">
+        <i class="ri-calendar-close-line"></i> Bloquear días
+      </button>
+    </div>
+  </div>
+</div>
