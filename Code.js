@@ -72,28 +72,37 @@ function doPost(e) {
     var apiMethods = {
       // Públicos
       'getConfigPublica': { fn: getConfigPublica, admin: false },
-      'getDiasDisponiblesPublico': { fn: getDiasDisponiblesPublico, admin: false },
-      'getBloquesDisponiblesPublico': { fn: getBloquesDisponiblesPublico, admin: false },
-      'saveCita': { fn: saveCita, admin: false },
-      'cancelCitaPublic': { fn: cancelCitaPublic, admin: false },
-      'reagendarCitaPublic': { fn: reagendarCitaPublic, admin: false },
-      'getCitaInfoByToken': { fn: getCitaInfoByToken, admin: false },
+      'getAvailableSlots': { fn: getAvailableSlots, admin: false },
+      'crearReserva': { fn: crearReserva, admin: false },
+      'cancelarReserva': { fn: cancelarReserva, admin: false },
+      'reagendarReserva': { fn: reagendarReserva, admin: false },
+      'getCitaPorToken': { fn: getCitaPorToken, admin: false },
+      'loginAdmin': { fn: loginAdmin, admin: false },
       
       // Admin
-      'getAdminPassword': { fn: function() { return getConfigValue('admin_password'); }, admin: false }, // Se expone para login
       'getConfigAdmin': { fn: getConfigAdmin, admin: true },
       'saveConfigAdmin': { fn: saveConfigAdmin, admin: true },
       'getHorarios': { fn: getHorarios, admin: true },
       'saveHorarios': { fn: saveHorarios, admin: true },
       'getExcepciones': { fn: getExcepciones, admin: true },
-      'saveExcepciones': { fn: saveExcepciones, admin: true },
-      'getServicios': { fn: getServicios, admin: true }, // Se usa en público pero getServicios() privado trae inactivos
-      'saveServicios': { fn: saveServicios, admin: true },
+      'addExcepcion': { fn: addExcepcion, admin: true },
+      'deleteExcepcion': { fn: deleteExcepcion, admin: true },
+      'bloquearRangoFechas': { fn: bloquearRangoFechas, admin: true },
+      'getServicios': { fn: getServicios, admin: true },
+      'saveServicio': { fn: saveServicio, admin: true },
+      'toggleServicio': { fn: toggleServicio, admin: true },
+      'deleteServicioAdmin': { fn: deleteServicioAdmin, admin: true },
       'getCitasTodas': { fn: getCitasTodas, admin: true },
       'getProximasCitas': { fn: getProximasCitas, admin: true },
       'getEstadisticas': { fn: getEstadisticas, admin: true },
-      'updateCitaEstado': { fn: updateCitaEstado, admin: true },
-      'getClientes': { fn: getClientes, admin: true }
+      'actualizarEstadoCita': { fn: actualizarEstadoCita, admin: true },
+      'getClientes': { fn: getClientes, admin: true },
+      'getCitasPorCliente': { fn: getCitasPorCliente, admin: true },
+      'upsertCliente': { fn: upsertCliente, admin: true },
+      'deleteClienteAdmin': { fn: deleteClienteAdmin, admin: true },
+      'generarEstructuraHoja': { fn: generarEstructuraHoja, admin: true },
+      'setupTriggers': { fn: setupTriggers, admin: true },
+      'crearReservaAdmin': { fn: crearReservaAdmin, admin: true }
     };
 
     if (!apiMethods[action]) {
