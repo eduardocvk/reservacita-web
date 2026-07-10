@@ -98,7 +98,11 @@ function getAvailableSlots(dateString, serviceId) {
         var citaEnd = timeToMinutes(cita.Hora_Fin);
 
         // Margen después de la cita existente
-        var margen = cita.Tipo === 'domicilio' ? margenDomicilio : margenConsulta;
+        var margen = margenConsulta;
+        if (cita.Tipo === 'domicilio') {
+          var tiempoDesp = parseInt(cita.Tiempo_Desplazamiento) || 0;
+          margen = Math.max(margenDomicilio, tiempoDesp);
+        }
         var citaEndConMargen = citaEnd + margen;
 
         // El slot no puede solaparse con la cita + su margen posterior

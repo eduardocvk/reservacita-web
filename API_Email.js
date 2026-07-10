@@ -29,7 +29,7 @@ function enviarConfirmacionCliente(citaData) {
           emailRow('🕐 Hora', citaData.Hora_Inicio) +
           emailRow('🏥 Servicio', (citaData.servicio_nombre || '') + ' (' + tipoLabel + ')') +
           (citaData.Cliente_Direccion ? emailRow('📍 Dirección', citaData.Cliente_Direccion) : '') +
-          (citaData.Tiempo_Desplazamiento ? emailRow('🚗 Desplazamiento', '~' + citaData.Tiempo_Desplazamiento + ' min') : '') +
+
           emailRow('💰 Precio', citaData.precio + '€') +
         '</table>' +
       '</div>' +
