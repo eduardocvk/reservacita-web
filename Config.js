@@ -24,6 +24,7 @@ var CONFIG = {
 
   // Valores por defecto para la configuración inicial
   DEFAULTS: {
+    admin_password: 'admin',
     nombre_negocio: 'Eduardo Callejo - Osteopatía',
     email_admin: 'eduardocvk@gmail.com',
     telefono: '+34676435634',

@@ -1173,6 +1173,7 @@ const admin = {
   populateAjustes: function(c) {
     if (!c) return;
     var fields = {
+      'cfg-admin-password': c.admin_password || 'admin',
       'cfg-nombre-negocio': c.nombre_negocio,
       'cfg-email-admin': c.email_admin,
       'cfg-telefono': c.telefono,
@@ -1214,7 +1215,10 @@ const admin = {
     var calDisp = document.getElementById('cfg-calendarios-disponibilidad').value
       .split('\n').map(s => s.trim()).filter(s => s).join(',');
 
+    var newPwd = document.getElementById('cfg-admin-password') ? document.getElementById('cfg-admin-password').value.trim() : '';
+
     var config = {
+      admin_password: newPwd || 'admin',
       nombre_negocio: document.getElementById('cfg-nombre-negocio').value,
       email_admin: document.getElementById('cfg-email-admin').value,
       telefono: document.getElementById('cfg-telefono').value,
@@ -1241,6 +1245,7 @@ const admin = {
     app.fetchData('saveConfigAdmin', config).then(result => {
       app.hideLoader();
       if (result && result.success) {
+        if (config.admin_password) this.setToken(config.admin_password);
         app.showToast('Configuración guardada', 'success');
       } else {
         app.showToast('Error al guardar', 'error');
