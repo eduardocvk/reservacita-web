@@ -1,8 +1,56 @@
 <!-- ═══════════════════════════════════════════════════════════
-     View_AdminAjustes.html — Configuración general + Generar estructura Sheets
+     View_AdminAjustes.html — Configuración general + Seguridad + PWA + Herramientas
      ═══════════════════════════════════════════════════════════ -->
 
-<!-- Configuración General -->
+<!-- ─── 1. Seguridad y Contraseña ─── -->
+<div class="card" style="border-left: 4px solid var(--primary);">
+  <div class="card-header">
+    <h3 class="card-title"><i class="ri-shield-keyhole-line text-primary"></i> Seguridad y Acceso Admin</h3>
+    <button class="btn btn-primary btn-sm" onclick="admin.saveAjustes()">
+      <i class="ri-save-line"></i> Guardar contraseña
+    </button>
+  </div>
+  <p class="text-sm text-muted mb-16">
+    Cambia la contraseña que utilizas para iniciar sesión en este panel de administración.
+  </p>
+  <div class="form-row" style="max-width: 500px; align-items: flex-end;">
+    <div class="form-group flex-1">
+      <label>Contraseña del panel</label>
+      <div style="position: relative; display: flex; align-items: center;">
+        <input type="password" id="cfg-admin-password" class="form-control" style="padding-right: 40px;" placeholder="Introduce tu nueva contraseña">
+        <button type="button" class="btn-icon" style="position: absolute; right: 8px; color: var(--text-muted);" onclick="admin.togglePasswordVisibility('cfg-admin-password')" title="Mostrar / ocultar contraseña">
+          <i class="ri-eye-line" id="icon-toggle-cfg-admin-password"></i>
+        </button>
+      </div>
+    </div>
+    <div class="form-group">
+      <button class="btn btn-primary" onclick="admin.saveAjustes()">
+        <i class="ri-lock-password-line"></i> Actualizar clave
+      </button>
+    </div>
+  </div>
+  <div class="form-hint mt-8">💡 Tras guardar, la nueva contraseña quedará activa de inmediato en tu panel y en Google Sheets.</div>
+</div>
+
+<!-- ─── 2. Instalación PWA en Móvil ─── -->
+<div class="card" style="background: linear-gradient(135deg, rgba(42,157,143,0.06) 0%, rgba(92,184,150,0.06) 100%); border: 1.5px solid var(--primary-light);">
+  <div class="card-header">
+    <h3 class="card-title" style="color: var(--secondary);"><i class="ri-smartphone-line text-primary"></i> Instalar App en el Móvil (PWA)</h3>
+  </div>
+  <p class="text-sm text-muted mb-16">
+    Instala el panel de administración como una aplicación en tu teléfono (Android o iPhone/iPad) para abrirlo directamente desde la pantalla de inicio a pantalla completa.
+  </p>
+  <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+    <button class="btn btn-primary" onclick="admin.installPWA()">
+      <i class="ri-download-2-line"></i> Instalar panel admin en este dispositivo
+    </button>
+  </div>
+  <div class="form-hint mt-16" style="background: var(--bg-white); padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-light);">
+    📱 <strong>En iPhone / iPad (Safari):</strong> Pulsa el botón <strong>Compartir</strong> (icono <i class="ri-share-box-line"></i> o ⎋ en la barra de Safari) y luego elige <strong>"Añadir a pantalla de inicio"</strong>.
+  </div>
+</div>
+
+<!-- ─── 3. Configuración General ─── -->
 <div class="card">
   <div class="card-header">
     <h3 class="card-title"><i class="ri-settings-3-line"></i> Configuración general</h3>
@@ -39,11 +87,6 @@
     <label>Dirección de la consulta</label>
     <input type="text" id="cfg-direccion-consulta" class="form-control" placeholder="Plaza Santa Cristina 4, Madrid">
     <div class="form-hint">Se usa para calcular tiempos de desplazamiento a domicilio</div>
-  </div>
-  <div class="form-group" style="max-width: 400px;">
-    <label><i class="ri-lock-password-line text-primary"></i> Contraseña de acceso al panel admin</label>
-    <input type="text" id="cfg-admin-password" class="form-control" placeholder="admin">
-    <div class="form-hint">Contraseña requerida para iniciar sesión en este panel de administración</div>
   </div>
 
   <hr style="border: none; border-top: 1px solid var(--border-light); margin: 24px 0;">

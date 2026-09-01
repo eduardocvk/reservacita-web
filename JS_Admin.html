@@ -1254,6 +1254,25 @@ const admin = {
     }).catch(err => { app.hideLoader(); app.showToast('Error', 'error'); });
   },
 
+  togglePasswordVisibility: function(inputId) {
+    var input = document.getElementById(inputId);
+    var icon = document.getElementById('icon-toggle-' + inputId);
+    if (!input) return;
+    if (input.type === 'password') {
+      input.type = 'text';
+      if (icon) {
+        icon.classList.remove('ri-eye-line');
+        icon.classList.add('ri-eye-off-line');
+      }
+    } else {
+      input.type = 'password';
+      if (icon) {
+        icon.classList.remove('ri-eye-off-line');
+        icon.classList.add('ri-eye-line');
+      }
+    }
+  },
+
   // ─── Herramientas ───
   generarEstructuraSheets: function() {
     if (!app.confirm('¿Generar la estructura de la hoja de cálculo?\n\nSe crearán las pestañas: Configuracion, Horarios, Excepciones, Servicios, Citas, Clientes.\n\nSi ya existen, NO se sobrescribirán.')) return;
