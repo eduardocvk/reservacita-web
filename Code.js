@@ -73,6 +73,7 @@ function doPost(e) {
     // Mapa de métodos y si requieren ser admin
     var apiMethods = {
       // Públicos
+      'loginAdmin': { fn: loginAdmin, admin: false },
       'getConfigPublica': { fn: getConfigPublica, admin: false },
       'getAvailableSlots': { fn: getAvailableSlots, admin: false },
       'crearReserva': { fn: crearReserva, admin: false },

@@ -318,13 +318,15 @@ function generarEstructuraHoja() {
 // ═══════════════════════════════════════════════════════════
 
 /**
- * Verifica la contraseña del administrador.
+ * Verifica la contraseña del administrador y devuelve el token de sesión.
  */
-function loginAdmin_(password) {
-  // Contraseña por defecto o guardada en configuración
+function loginAdmin(password) {
   var currentPassword = getConfigValue('admin_password');
+  // Si no está configurada, permitir admin123 o la configurada
+  if (!currentPassword) currentPassword = 'admin';
+
   if (password === currentPassword) {
-    return { success: true };
+    return { success: true, token: currentPassword };
   } else {
     return { success: false, message: 'Contraseña incorrecta' };
   }
