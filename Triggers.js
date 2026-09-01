@@ -112,8 +112,7 @@ function processDailyTasks() {
       if (c.Estado !== 'confirmada') return false;
       
       var fechaCita = c.Fecha;
-      if (fechaCita instanceof Date) fechaCita = Utilities.formatDate(fechaCita, CONFIG.TIMEZONE, 'yyyy-MM-dd');
-      else if (typeof fechaCita === 'string' && fechaCita.includes('T')) fechaCita = fechaCita.split('T')[0];
+      fechaCita = app_normalizarFecha(fechaCita);
       
       if (fechaCita < hoyStr) return true; // Días anteriores
       

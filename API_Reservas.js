@@ -327,11 +327,7 @@ function getCitaPorToken(token) {
     if (!cita) return { error: 'No se encontró ninguna cita con este enlace.' };
 
     // Formatear fecha
-    if (cita.Fecha instanceof Date) {
-      cita.Fecha = Utilities.formatDate(cita.Fecha, CONFIG.TIMEZONE, 'yyyy-MM-dd');
-    } else if (typeof cita.Fecha === 'string' && cita.Fecha.includes('T')) {
-      cita.Fecha = cita.Fecha.split('T')[0];
-    }
+    cita.Fecha = app_normalizarFecha(cita.Fecha);
 
     // Enriquecer con nombre de servicio
     var servicios = getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_SERVICIOS);
@@ -354,11 +350,7 @@ function getCitasTodas() {
 
     citas.forEach(function(c) {
       // Formatear fecha
-      if (c.Fecha instanceof Date) {
-        c.Fecha = Utilities.formatDate(c.Fecha, CONFIG.TIMEZONE, 'yyyy-MM-dd');
-      } else if (typeof c.Fecha === 'string' && c.Fecha.includes('T')) {
-        c.Fecha = Utilities.formatDate(new Date(c.Fecha), CONFIG.TIMEZONE, 'yyyy-MM-dd');
-      }
+      c.Fecha = app_normalizarFecha(c.Fecha);
       
       if (c.Hora_Inicio) c.Hora_Inicio = formatTimeValue(c.Hora_Inicio);
       if (c.Hora_Fin) c.Hora_Fin = formatTimeValue(c.Hora_Fin);
@@ -387,11 +379,7 @@ function getProximasCitas() {
 
     var futuras = citas.filter(function(c) {
       var fecha = c.Fecha;
-      if (fecha instanceof Date) {
-        fecha = Utilities.formatDate(fecha, CONFIG.TIMEZONE, 'yyyy-MM-dd');
-      } else if (typeof fecha === 'string' && fecha.includes('T')) {
-        fecha = Utilities.formatDate(new Date(fecha), CONFIG.TIMEZONE, 'yyyy-MM-dd');
-      }
+      fecha = app_normalizarFecha(fecha);
       c.Fecha = fecha;
       return fecha >= hoy && c.Estado === 'confirmada';
     });
@@ -436,8 +424,7 @@ function getEstadisticas() {
 
     // Normalizar fechas
     citas.forEach(function(c) {
-      if (c.Fecha instanceof Date) c.Fecha = Utilities.formatDate(c.Fecha, CONFIG.TIMEZONE, 'yyyy-MM-dd');
-      else if (typeof c.Fecha === 'string' && c.Fecha.includes('T')) c.Fecha = c.Fecha.split('T')[0];
+      c.Fecha = app_normalizarFecha(c.Fecha);
     });
 
     var citasHoy = citas.filter(function(c) { return c.Fecha === hoy && c.Estado === 'confirmada'; }).length;
@@ -475,6 +462,87 @@ function actualizarEstadoCita(citaId, nuevoEstado) {
 
     return { success: true };
   } catch (e) {
+    return { success: false, message: 'Error: ' + e.toString() };
+  }
+}
+
+/**
+ * Modifica una reserva existente desde el panel de administración.
+ */
+function modificarReservaAdmin(datos) {
+  try {
+    if (!datos || !datos.ID) {
+      return { success: false, message: 'ID de cita no proporcionado.' };
+    }
+
+    var citas = getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_CITAS);
+    var cita = citas.find(function(c) { return c.ID == datos.ID; });
+    if (!cita) {
+      return { success: false, message: 'Cita no encontrada.' };
+    }
+
+    var servicios = getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_SERVICIOS);
+    var servicioId = datos.servicio_id || cita.Servicio_ID;
+    var servicio = servicios.find(function(s) { return s.ID == servicioId; });
+    if (!servicio) servicio = { Tipo: cita.Tipo || 'consulta', Duracion_Minutos: 60, Nombre: '' };
+
+    var duracion = parseInt(servicio.Duracion_Minutos) || 60;
+    var horaInicio = datos.hora || cita.Hora_Inicio;
+    var horaFin = minutesToTime(timeToMinutes(horaInicio) + duracion);
+
+    // Calcular desplazamiento si es a domicilio
+    var tiempoDesplazamiento = cita.Tiempo_Desplazamiento || '';
+    if (servicio.Tipo === 'domicilio') {
+      var dir = datos.direccion !== undefined ? datos.direccion : cita.Cliente_Direccion;
+      if (dir && dir !== cita.Cliente_Direccion) {
+        var config = getAllConfig();
+        var origen = config.direccion_consulta || 'Plaza Santa Cristina 4, Madrid';
+        tiempoDesplazamiento = calcularTiempoDesplazamiento(origen, dir);
+      }
+    } else {
+      tiempoDesplazamiento = '';
+    }
+
+    // Actualizar datos
+    cita.Servicio_ID = servicioId;
+    cita.Tipo = servicio.Tipo;
+    cita.Fecha = datos.fecha || cita.Fecha;
+    cita.Hora_Inicio = horaInicio;
+    cita.Hora_Fin = horaFin;
+    if (datos.estado) cita.Estado = datos.estado;
+    if (datos.nombre !== undefined) cita.Cliente_Nombre = datos.nombre;
+    if (datos.email !== undefined) cita.Cliente_Email = datos.email;
+    if (datos.telefono !== undefined) cita.Cliente_Telefono = datos.telefono;
+    if (datos.direccion !== undefined) cita.Cliente_Direccion = datos.direccion;
+    cita.Tiempo_Desplazamiento = tiempoDesplazamiento;
+    if (datos.notas !== undefined) cita.Notas = datos.notas;
+
+    // Sincronizar con calendario de Google
+    if (cita.Estado === 'cancelada') {
+      if (cita.Calendar_Event_ID) {
+        deleteCalendarEvent(cita.Calendar_Event_ID);
+        cita.Calendar_Event_ID = '';
+      }
+    } else {
+      if (cita.Calendar_Event_ID) {
+        updateCalendarEvent(cita.Calendar_Event_ID, cita);
+      } else if (cita.Estado === 'confirmada') {
+        cita.servicio_nombre = servicio.Nombre;
+        cita.Calendar_Event_ID = createCalendarEvent(cita);
+      }
+    }
+
+    // Actualizar cliente en pestaña de clientes si hay datos
+    if (cita.Cliente_Nombre && (cita.Cliente_Email || cita.Cliente_Telefono)) {
+      upsertCliente(cita.Cliente_Nombre, cita.Cliente_Email || '', cita.Cliente_Telefono || '', cita.Cliente_Direccion || '');
+    }
+
+    // Guardar en Google Sheets
+    updateRowData(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_CITAS, cita._rowIndex, cita);
+
+    return { success: true, cita: cita };
+  } catch (e) {
+    console.error('Error modificando cita admin: ' + e.toString());
     return { success: false, message: 'Error: ' + e.toString() };
   }
 }

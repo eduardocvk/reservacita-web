@@ -130,11 +130,7 @@ function getExcepciones() {
     var data = getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_EXCEPCIONES);
     // Formatear fechas como string YYYY-MM-DD
     data.forEach(function(exc) {
-      if (exc.Fecha instanceof Date) {
-        exc.Fecha = Utilities.formatDate(exc.Fecha, CONFIG.TIMEZONE, 'yyyy-MM-dd');
-      } else if (typeof exc.Fecha === 'string' && exc.Fecha.includes('T')) {
-        exc.Fecha = exc.Fecha.split('T')[0];
-      }
+      exc.Fecha = app_normalizarFecha(exc.Fecha);
     });
     return data;
   } catch (e) {
@@ -171,13 +167,13 @@ function deleteExcepcion(rowIndex) {
  */
 function bloquearRangoFechas(fechaInicioStr, fechaFinStr, motivo) {
   try {
-    var inicio = new Date(fechaInicioStr);
-    var fin = new Date(fechaFinStr);
+    var inicio = app_crearFechaCalendario(fechaInicioStr);
+    var fin = app_crearFechaCalendario(fechaFinStr);
     var count = 0;
 
     var current = new Date(inicio);
     while (current <= fin) {
-      var fechaStr = Utilities.formatDate(current, CONFIG.TIMEZONE, 'yyyy-MM-dd');
+      var fechaStr = app_normalizarFecha(current);
       insertRowData(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_EXCEPCIONES, {
         Fecha: fechaStr,
         Tipo: 'cerrado',
@@ -298,11 +294,7 @@ function getCitasPorCliente(email) {
       c.servicio_nombre = svc ? svc.Nombre : '';
 
       // Formatear fecha
-      if (c.Fecha instanceof Date) {
-        c.Fecha = Utilities.formatDate(c.Fecha, CONFIG.TIMEZONE, 'yyyy-MM-dd');
-      } else if (typeof c.Fecha === 'string' && c.Fecha.includes('T')) {
-        c.Fecha = c.Fecha.split('T')[0];
-      }
+      c.Fecha = app_normalizarFecha(c.Fecha);
     });
 
     // Ordenar por fecha descendente

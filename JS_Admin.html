@@ -57,12 +57,66 @@ const admin = {
       this.state.servicios = servicios || [];
       this.renderDashboard();
       this.populateServicioSelects();
+      this.initPWA();
       app.hideLoader();
     }).catch(err => {
       console.error('Error inicializando admin:', err);
       app.hideLoader();
-      app.showToast('Error al cargar datos. Verifica que la estructura de la hoja esté creada (Ajustes → Generar estructura).', 'error');
+      app.showToast(err.message || 'Error al cargar datos. Verifica la estructura de la hoja.', 'error');
     });
+  },
+
+  // ─── PWA & Instalación ───
+  deferredPrompt: null,
+  initPWA: function() {
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('./sw.js').catch(function(err) {
+          console.log('SW registration:', err);
+        });
+      });
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      this.deferredPrompt = e;
+      var btn = document.getElementById('btn-install-pwa');
+      if (btn) btn.style.display = 'flex';
+    });
+
+    window.addEventListener('appinstalled', () => {
+      this.deferredPrompt = null;
+      var btn = document.getElementById('btn-install-pwa');
+      if (btn) btn.style.display = 'none';
+      app.showToast('¡Panel Admin instalado con éxito!', 'success');
+    });
+
+    // Mostrar botón también en iOS para instrucciones
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    var isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    if (isIOS && !isStandalone) {
+      var btn = document.getElementById('btn-install-pwa');
+      if (btn) btn.style.display = 'flex';
+    }
+  },
+
+  installPWA: function() {
+    if (this.deferredPrompt) {
+      this.deferredPrompt.prompt();
+      this.deferredPrompt.userChoice.then((choiceResult) => {
+        if (choiceResult.outcome === 'accepted') {
+          console.log('User accepted install prompt');
+        }
+        this.deferredPrompt = null;
+      });
+    } else {
+      var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      if (isIOS) {
+        alert('Para instalar en tu iPhone/iPad:\n1. Pulsa el botón Compartir (icono ⎋ abajo en Safari)\n2. Selecciona "Añadir a pantalla de inicio" 📲');
+      } else {
+        alert('Para instalar la app:\nPulsa el menú de tu navegador (⋮) y selecciona "Instalar aplicación" o "Añadir a pantalla de inicio" 📲');
+      }
+    }
   },
 
   login: function() {
@@ -217,7 +271,7 @@ const admin = {
     var domingo = new Date(lunes);
     domingo.setDate(lunes.getDate() + 6);
 
-    headerEl.textContent = 'Semana del ' + app.formatDateShort(lunes.toISOString().split('T')[0]) + ' al ' + app.formatDateShort(domingo.toISOString().split('T')[0]);
+    headerEl.textContent = 'Semana del ' + app.formatDateShort(app.dateToString(lunes)) + ' al ' + app.formatDateShort(app.dateToString(domingo));
 
     // Generar días de la semana
     var diasNombres = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -437,9 +491,14 @@ const admin = {
         '<td>' + tipoBadge + '</td>' +
         '<td>' + estadoBadge + '</td>' +
         '<td>' +
-          '<button class="btn-icon" title="Ver detalle" onclick="admin.showDetalleCita(' + JSON.stringify(c).replace(/"/g, '&quot;') + ')">' +
-            '<i class="ri-eye-line"></i>' +
-          '</button>' +
+          '<div style="display: flex; gap: 4px; align-items: center;">' +
+            '<button class="btn-icon text-primary" title="Modificar cita" onclick="admin.openEditarCitaModal(' + JSON.stringify(c).replace(/"/g, '&quot;') + ')">' +
+              '<i class="ri-edit-line"></i>' +
+            '</button>' +
+            '<button class="btn-icon" title="Ver detalle" onclick="admin.showDetalleCita(' + JSON.stringify(c).replace(/"/g, '&quot;') + ')">' +
+              '<i class="ri-eye-line"></i>' +
+            '</button>' +
+          '</div>' +
         '</td>' +
         '</tr>';
     });
@@ -497,10 +556,11 @@ const admin = {
 
     // Acciones según estado
     var actionsHtml = '<button class="btn btn-secondary" onclick="app.closeModal(\'modal-detalle-cita\')">Cerrar</button>';
+    actionsHtml += ' <button class="btn btn-primary btn-sm" onclick="app.closeModal(\'modal-detalle-cita\'); admin.openEditarCitaModal(' + JSON.stringify(cita).replace(/"/g, '&quot;') + ')"><i class="ri-edit-line"></i> Modificar</button>';
     if (cita.Estado === 'confirmada') {
       actionsHtml += ' <button class="btn btn-danger btn-sm" onclick="admin.cambiarEstadoCita(\'' + cita.ID + '\', \'cancelada\')"><i class="ri-close-circle-line"></i> Cancelar</button>';
       actionsHtml += ' <button class="btn btn-secondary btn-sm" onclick="admin.cambiarEstadoCita(\'' + cita.ID + '\', \'no_show\')"><i class="ri-user-unfollow-line"></i> No presentado</button>';
-      actionsHtml += ' <button class="btn btn-primary btn-sm" onclick="admin.cambiarEstadoCita(\'' + cita.ID + '\', \'completada\')"><i class="ri-check-line"></i> Completada</button>';
+      actionsHtml += ' <button class="btn btn-success btn-sm" onclick="admin.cambiarEstadoCita(\'' + cita.ID + '\', \'completada\')"><i class="ri-check-line"></i> Completada</button>';
     }
     actions.innerHTML = actionsHtml;
 
@@ -517,8 +577,80 @@ const admin = {
       if (result && result.success) {
         app.showToast('Estado actualizado', 'success');
         this.loadCitas();
+        if (this.state.citas) this.refreshDashboard();
       } else {
         app.showToast(result.message || 'Error al actualizar', 'error');
+      }
+    }).catch(err => {
+      app.hideLoader();
+      app.showToast('Error de conexión', 'error');
+    });
+  },
+
+  // ─── Modificar Cita ───
+  openEditarCitaModal: function(cita) {
+    if (!cita) return;
+    this.populateServicioSelects();
+
+    document.getElementById('edit-cita-id').value = cita.ID || '';
+    document.getElementById('edit-cita-servicio').value = cita.Servicio_ID || '';
+    document.getElementById('edit-cita-fecha').value = cita.Fecha || '';
+    document.getElementById('edit-cita-hora').value = (cita.Hora_Inicio || '').substring(0, 5);
+    document.getElementById('edit-cita-estado').value = cita.Estado || 'confirmada';
+    document.getElementById('edit-cita-nombre').value = cita.Cliente_Nombre || '';
+    document.getElementById('edit-cita-email').value = cita.Cliente_Email || '';
+    document.getElementById('edit-cita-telefono').value = cita.Cliente_Telefono || '';
+    document.getElementById('edit-cita-direccion').value = cita.Cliente_Direccion || '';
+    document.getElementById('edit-cita-notas').value = cita.Notas || '';
+
+    var select = document.getElementById('edit-cita-servicio');
+    var updateDirVisibility = function() {
+      var svc = admin.state.servicios.find(s => s.ID == select.value);
+      var isDom = (svc && svc.Tipo === 'domicilio') || (cita.Tipo === 'domicilio' && !svc);
+      document.getElementById('edit-cita-direccion-group').style.display = isDom ? 'block' : 'none';
+    };
+    select.onchange = updateDirVisibility;
+    updateDirVisibility();
+
+    app.openModal('modal-editar-cita');
+  },
+
+  guardarModificacionCita: function() {
+    var id = document.getElementById('edit-cita-id').value;
+    var servicioId = document.getElementById('edit-cita-servicio').value;
+    var fecha = document.getElementById('edit-cita-fecha').value;
+    var hora = document.getElementById('edit-cita-hora').value;
+    var estado = document.getElementById('edit-cita-estado').value;
+    var nombre = document.getElementById('edit-cita-nombre').value.trim();
+
+    if (!id || !servicioId || !fecha || !hora || !nombre) {
+      app.showToast('Rellena al menos servicio, fecha, hora y nombre', 'warning');
+      return;
+    }
+
+    var datos = {
+      ID: id,
+      servicio_id: servicioId,
+      fecha: fecha,
+      hora: hora,
+      estado: estado,
+      nombre: nombre,
+      email: document.getElementById('edit-cita-email').value.trim(),
+      telefono: document.getElementById('edit-cita-telefono').value.trim(),
+      direccion: document.getElementById('edit-cita-direccion').value.trim(),
+      notas: document.getElementById('edit-cita-notas').value.trim()
+    };
+
+    app.showLoader('Guardando cambios...');
+    app.fetchData('modificarReservaAdmin', datos).then(result => {
+      app.hideLoader();
+      if (result && result.success) {
+        app.showToast('Cita modificada correctamente', 'success');
+        app.closeModal('modal-editar-cita');
+        this.loadCitas();
+        if (this.state.citas) this.refreshDashboard();
+      } else {
+        app.showToast((result && result.message) || 'Error al modificar cita', 'error');
       }
     }).catch(err => {
       app.hideLoader();
@@ -564,16 +696,20 @@ const admin = {
   },
 
   populateServicioSelects: function() {
-    var select = document.getElementById('new-cita-servicio');
-    if (!select) return;
-    select.innerHTML = '<option value="">Seleccionar...</option>';
-    (this.state.servicios || []).forEach(s => {
-      if (s.Activo === true || s.Activo === 'TRUE') {
-        var opt = document.createElement('option');
-        opt.value = s.ID;
-        opt.textContent = s.Nombre + ' (' + s.Duracion_Minutos + 'min - ' + s.Precio + '€)';
-        select.appendChild(opt);
-      }
+    var selects = [document.getElementById('new-cita-servicio'), document.getElementById('edit-cita-servicio')];
+    selects.forEach(select => {
+      if (!select) return;
+      var currentVal = select.value;
+      select.innerHTML = '<option value="">Seleccionar...</option>';
+      (this.state.servicios || []).forEach(s => {
+        if (s.Activo === true || s.Activo === 'TRUE' || String(s.ID) === String(currentVal)) {
+          var opt = document.createElement('option');
+          opt.value = s.ID;
+          opt.textContent = s.Nombre + ' (' + s.Duracion_Minutos + 'min - ' + s.Precio + '€)';
+          select.appendChild(opt);
+        }
+      });
+      if (currentVal) select.value = currentVal;
     });
   },
 
@@ -633,6 +769,8 @@ const admin = {
       app.hideLoader();
     }).catch(err => {
       console.error(err);
+      var tbodyH = document.getElementById('horarios-tbody');
+      if (tbodyH) tbodyH.innerHTML = '<tr><td colspan="8" class="text-center text-danger" style="padding:32px;"><i class="ri-error-warning-line"></i> ' + (err.message || 'Error al cargar horarios') + '</td></tr>';
       app.hideLoader();
     });
   },
@@ -826,7 +964,12 @@ const admin = {
       this.state.servicios = data || [];
       this.renderServicios();
       app.hideLoader();
-    }).catch(err => { app.hideLoader(); });
+    }).catch(err => { 
+      console.error(err);
+      var tbody = document.getElementById('servicios-tbody');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger" style="padding:32px;"><i class="ri-error-warning-line"></i> ' + (err.message || 'Error al cargar servicios') + '</td></tr>';
+      app.hideLoader(); 
+    });
   },
 
   renderServicios: function() {

@@ -3,7 +3,17 @@
 <head>
   <base target="_top">
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Admin — ReservaCita Eduardo Callejo</title>
+
+  <!-- PWA & Mobile Web App -->
+  <link rel="manifest" href="./admin-manifest.json">
+  <meta name="theme-color" content="#2A9D8F">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Reserva Admin">
+  <link rel="apple-touch-icon" href="https://osteopatiamadrid.com/lovable-uploads/eduardo-callejo-logo.png">
 
   <!-- Tipografías -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,8 +29,8 @@
 <body class="admin-body">
 
   <!-- ─── Pantalla de Login ─── -->
-  <div id="login-screen" style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #F8FAFB; width: 100%;">
-    <div class="card" style="background: #fff; border-radius: 16px; padding: 48px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.08); max-width: 400px; width: 100%;">
+  <div id="login-screen" style="display: flex; align-items: center; justify-content: center; min-height: 100vh; background: #F8FAFB; width: 100%; padding: 16px;">
+    <div class="card" style="background: #fff; border-radius: 16px; padding: 40px 24px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.08); max-width: 400px; width: 100%;">
       <div class="icon" style="font-size: 48px; margin-bottom: 16px;">🔒</div>
       <h2 style="color: #264653; margin: 0 0 8px;">Panel de Administración</h2>
       <p style="color: #8E8E9E; margin: 0 0 24px; font-size: 14px;">Introduce la contraseña para acceder.</p>
@@ -67,6 +77,9 @@
       <div style="flex-grow: 1;"></div>
 
       <ul class="nav-links" style="margin-bottom: 0;">
+        <li class="nav-item" id="btn-install-pwa" onclick="admin.installPWA()" style="display: none; background: rgba(42,157,143,0.12); color: var(--primary); font-weight: 600;">
+          <i class="ri-smartphone-line"></i> Instalar en móvil
+        </li>
         <li class="nav-item" onclick="admin.navigate('ajustes', this)">
           <i class="ri-settings-3-line"></i> Ajustes
         </li>
@@ -87,8 +100,8 @@
     <main class="main-content">
       <!-- Topbar -->
       <header class="topbar">
-        <div style="display: flex; align-items: center;">
-          <button class="btn-mobile-menu" onclick="admin.toggleMobileMenu()">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button class="btn-mobile-menu" onclick="admin.toggleMobileMenu()" aria-label="Abrir menú">
             <i class="ri-menu-line"></i>
           </button>
           <div class="topbar-title">
@@ -97,7 +110,7 @@
         </div>
         <div class="topbar-actions">
           <button class="btn btn-primary btn-sm" onclick="admin.openNewCitaModal()">
-            <i class="ri-add-line"></i> Nueva cita
+            <i class="ri-add-line"></i> <span class="hide-mobile">Nueva cita</span>
           </button>
         </div>
       </header>
@@ -204,6 +217,81 @@
         <button class="btn btn-secondary" onclick="app.closeModal('modal-nueva-cita')">Cancelar</button>
         <button class="btn btn-primary" onclick="admin.saveNewCita()">
           <i class="ri-check-line"></i> Crear cita
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Editar Cita (Admin) -->
+  <div class="modal-overlay" id="modal-editar-cita">
+    <div class="modal-content" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="ri-edit-line text-primary"></i> Modificar cita</h3>
+        <button class="modal-close" onclick="app.closeModal('modal-editar-cita')">
+          <i class="ri-close-line"></i>
+        </button>
+      </div>
+
+      <input type="hidden" id="edit-cita-id">
+
+      <div class="form-group">
+        <label>Servicio <span class="required">*</span></label>
+        <select id="edit-cita-servicio" class="form-control">
+          <option value="">Seleccionar...</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Fecha <span class="required">*</span></label>
+          <input type="date" id="edit-cita-fecha" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>Hora <span class="required">*</span></label>
+          <input type="time" id="edit-cita-hora" class="form-control" step="900">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Estado de la cita <span class="required">*</span></label>
+        <select id="edit-cita-estado" class="form-control">
+          <option value="confirmada">Confirmada</option>
+          <option value="completada">Completada</option>
+          <option value="cancelada">Cancelada</option>
+          <option value="no_show">No presentado</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Nombre del cliente <span class="required">*</span></label>
+        <input type="text" id="edit-cita-nombre" class="form-control" placeholder="Nombre completo">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="edit-cita-email" class="form-control" placeholder="email@ejemplo.com">
+        </div>
+        <div class="form-group">
+          <label>Teléfono</label>
+          <input type="tel" id="edit-cita-telefono" class="form-control" placeholder="+34...">
+        </div>
+      </div>
+
+      <div class="form-group" id="edit-cita-direccion-group" style="display: none;">
+        <label>Dirección (domicilio)</label>
+        <input type="text" id="edit-cita-direccion" class="form-control" placeholder="Calle, número, ciudad...">
+      </div>
+
+      <div class="form-group">
+        <label>Notas internas</label>
+        <textarea id="edit-cita-notas" class="form-control" rows="2" placeholder="Notas internas..."></textarea>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="app.closeModal('modal-editar-cita')">Cancelar</button>
+        <button class="btn btn-primary" onclick="admin.guardarModificacionCita()">
+          <i class="ri-save-line"></i> Guardar cambios
         </button>
       </div>
     </div>

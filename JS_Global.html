@@ -18,9 +18,17 @@ const app = {
   // ─── Wrapper de google.script.run como Promise ───
   fetchData: function(serverFunctionName, ...args) {
     return new Promise((resolve, reject) => {
+      if (typeof google === 'undefined' || !google.script || !google.script.run) {
+        reject(new Error("google.script.run no está disponible."));
+        return;
+      }
+      if (typeof google.script.run[serverFunctionName] !== 'function') {
+        reject(new Error("Función '" + serverFunctionName + "' no encontrada. Por favor, asegúrate de crear un Nuevo Despliegue en Apps Script."));
+        return;
+      }
       google.script.run
         .withSuccessHandler(result => {
-          if (result && result.error) reject(result.error);
+          if (result && result.error) reject(new Error(result.error));
           else resolve(result);
         })
         .withFailureHandler(error => reject(error))

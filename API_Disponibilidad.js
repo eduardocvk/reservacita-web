@@ -69,8 +69,7 @@ function getAvailableSlots(dateString, serviceId) {
     var citas = getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_CITAS);
     var citasDelDia = citas.filter(function(c) {
       var citaFecha = c.Fecha;
-      if (citaFecha instanceof Date) citaFecha = Utilities.formatDate(citaFecha, CONFIG.TIMEZONE, 'yyyy-MM-dd');
-      else if (typeof citaFecha === 'string' && citaFecha.includes('T')) citaFecha = citaFecha.split('T')[0];
+      citaFecha = app_normalizarFecha(citaFecha);
       return citaFecha === dateString && c.Estado === 'confirmada';
     });
 
@@ -141,9 +140,10 @@ function getAvailableSlots(dateString, serviceId) {
       return { hora: s.hora, disponible: s.disponible };
     });
 
-  } catch (e) {
-    console.error('Error en getAvailableSlots: ' + e.toString());
-    return [];
+  } catch (error) {
+    console.error("Error getAvailableSlots: ", error);
+    // Para debuggear, devolvemos el error como un slot falso o lanzamos
+    return [{hora: "ERROR: " + error.toString(), disponible: false}];
   }
 }
 
@@ -169,8 +169,7 @@ function getBloquesDia(dateString) {
   var excepciones = getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_EXCEPCIONES);
   var excepcion = excepciones.find(function(exc) {
     var excFecha = exc.Fecha;
-    if (excFecha instanceof Date) excFecha = Utilities.formatDate(excFecha, CONFIG.TIMEZONE, 'yyyy-MM-dd');
-    else if (typeof excFecha === 'string' && excFecha.includes('T')) excFecha = excFecha.split('T')[0];
+    excFecha = app_normalizarFecha(excFecha);
     return excFecha === dateString;
   });
 

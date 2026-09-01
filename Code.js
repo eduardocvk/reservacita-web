@@ -12,6 +12,7 @@ function doGet(e) {
   var params = (e && e.parameter) ? e.parameter : {};
 
   // ─── Ruta: Panel de Administración ───
+    return HtmlService.createHtmlOutput('El panel de administración se ha trasladado a un acceso privado.');
   if (params.admin === 'true') {
     var adminTemplate = HtmlService.createTemplateFromFile('Index_Admin');
     return adminTemplate.evaluate()
@@ -61,6 +62,7 @@ function include(filename) {
  * ─── API REST ───
  * Maneja peticiones POST desde el frontend estático externo (Ej. GitHub Pages).
  */
+// Force push 1
 function doPost(e) {
   try {
     var payload = JSON.parse(e.postData.contents);
@@ -77,7 +79,6 @@ function doPost(e) {
       'cancelarReserva': { fn: cancelarReserva, admin: false },
       'reagendarReserva': { fn: reagendarReserva, admin: false },
       'getCitaPorToken': { fn: getCitaPorToken, admin: false },
-      'loginAdmin': { fn: loginAdmin, admin: false },
       
       // Admin
       'getConfigAdmin': { fn: getConfigAdmin, admin: true },
@@ -102,7 +103,8 @@ function doPost(e) {
       'deleteClienteAdmin': { fn: deleteClienteAdmin, admin: true },
       'generarEstructuraHoja': { fn: generarEstructuraHoja, admin: true },
       'setupTriggers': { fn: setupTriggers, admin: true },
-      'crearReservaAdmin': { fn: crearReservaAdmin, admin: true }
+      'crearReservaAdmin': { fn: crearReservaAdmin, admin: true },
+      'modificarReservaAdmin': { fn: modificarReservaAdmin, admin: true }
     };
 
     if (!apiMethods[action]) {

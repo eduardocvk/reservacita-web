@@ -1,0 +1,16 @@
+# Ignore everything by default except GAS files
+**/**
+!API_*.js
+!Code.js
+!Código.js
+!Config.js
+!DB_Utils.js
+!Triggers.js
+!appsscript.json
+!Index.html
+!Index_Admin.html
+!CSS.html
+!JS_Global.html
+!JS_Reserva.html
+!JS_Admin.html
+!View_*.html

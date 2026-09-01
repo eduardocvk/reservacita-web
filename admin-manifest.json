@@ -1,0 +1,19 @@
+{
+  "name": "ReservaCita Admin — Eduardo Callejo",
+  "short_name": "Reserva Admin",
+  "description": "Panel de administración y gestión de citas de Eduardo Callejo Osteopatía Madrid",
+  "start_url": "./admin.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#264653",
+  "theme_color": "#2A9D8F",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "https://osteopatiamadrid.com/lovable-uploads/eduardo-callejo-logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

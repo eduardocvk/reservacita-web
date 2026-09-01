@@ -1583,33 +1583,42 @@ tbody tr:hover {
 
 /* ─── Responsivo ─── */
 @media (max-width: 768px) {
+  html, body, .admin-body, .public-wrapper, .app-container {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
   /* Público */
   .public-header {
-    padding: 16px 20px;
+    padding: 14px 16px;
   }
 
   .header-logo {
-    height: 44px;
+    height: 38px;
   }
 
   .booking-container {
-    padding: 20px 16px 40px;
+    padding: 16px 12px 32px;
+    width: 100%;
+    max-width: 100%;
   }
 
   .step-title {
-    font-size: 20px;
+    font-size: 19px;
   }
 
   .form-row {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .slots-grid {
-    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(65px, 1fr));
+    gap: 8px;
   }
 
   .step-line {
-    width: 32px;
+    width: 24px;
   }
 
   /* Admin */
@@ -1618,26 +1627,70 @@ tbody tr:hover {
   }
 
   .btn-mobile-menu {
-    display: none; /* Oculto en escritorio */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     background: none;
     border: none;
     font-size: 24px;
     color: var(--text-dark);
     cursor: pointer;
-    margin-right: 12px;
-    padding: 4px;
+    margin-right: 8px;
+    padding: 6px;
+    border-radius: var(--radius-sm);
   }
 
   .topbar {
-    padding: 0 20px;
+    padding: 0 14px;
+    height: 56px;
   }
 
   .view-container {
-    padding: 0 20px 20px;
+    padding: 0 12px 20px;
+    width: 100%;
+    max-width: 100%;
   }
 
   .kpi-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .card {
+    padding: 16px 14px;
+    margin-bottom: 14px;
+  }
+
+  .filters-bar {
+    gap: 10px;
+  }
+
+  .filter-group {
+    flex: 1 1 calc(50% - 10px);
+    min-width: 130px;
+  }
+
+  .filter-group select,
+  .filter-group input[type="date"] {
+    width: 100%;
+  }
+
+  .modal-content {
+    width: 95%;
+    max-width: 95vw;
+    padding: 20px 16px;
+    margin: 10px auto;
+  }
+
+  .table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table th, table td {
+    padding: 10px 8px;
+    font-size: 13px;
   }
 }
 
@@ -1645,12 +1698,13 @@ tbody tr:hover {
   /* Admin Sidebar Mobile */
   .sidebar {
     position: fixed;
-    left: -260px;
+    left: -280px;
     top: 0;
     bottom: 0;
+    width: 260px;
     z-index: 1000;
     transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 2px 0 12px rgba(0,0,0,0.1);
+    box-shadow: 4px 0 20px rgba(0,0,0,0.15);
   }
   .sidebar.active {
     left: 0;
@@ -1661,37 +1715,35 @@ tbody tr:hover {
     inset: 0;
     background: rgba(0,0,0,0.5);
     z-index: 999;
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(3px);
   }
   .sidebar-overlay.active {
     display: block;
   }
-  .btn-mobile-menu {
-    display: inline-block;
-  }
   .topbar {
-    padding: 0 16px;
+    padding: 0 10px;
   }
   .topbar-title h1 {
-    font-size: 18px;
+    font-size: 16px;
   }
 
   .step-line {
-    width: 20px;
+    width: 14px;
   }
 
   .step-circle {
-    width: 32px;
-    height: 32px;
-    font-size: 13px;
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
   }
 
   .services-grid {
-    gap: 12px;
+    gap: 10px;
+    grid-template-columns: 1fr;
   }
 
   .service-card {
-    padding: 16px;
+    padding: 14px;
   }
 
   .calendar-grid {
@@ -1700,6 +1752,7 @@ tbody tr:hover {
 
   .wizard-nav {
     flex-direction: column-reverse;
+    gap: 8px;
   }
 
   .wizard-nav .btn {
@@ -1708,19 +1761,50 @@ tbody tr:hover {
 
   .kpi-grid {
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    gap: 8px;
   }
 
   .kpi-card {
-    padding: 14px;
+    padding: 12px 10px;
   }
 
   .kpi-value {
-    font-size: 22px;
+    font-size: 20px;
+  }
+
+  .kpi-label {
+    font-size: 11px;
+  }
+
+  .filter-group {
+    flex: 1 1 100%;
+    min-width: 100%;
+  }
+
+  .modal-content {
+    width: 96%;
+    padding: 16px 12px;
+  }
+
+  .modal-footer {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .modal-footer .btn {
+    width: 100%;
+  }
+
+  .hide-mobile {
+    display: none !important;
   }
 }
 
 /* ─── Utilidades ─── */
+.hide-mobile { display: inline; }
+@media (max-width: 480px) {
+  .hide-mobile { display: none !important; }
+}
 .text-center { text-align: center; }
 .text-right { text-align: right; }
 .text-muted { color: var(--text-muted); }

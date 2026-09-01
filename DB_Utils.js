@@ -6,6 +6,32 @@
 // ═══════════════════════════════════════════════════════════
 // CRUD GENÉRICO
 // ═══════════════════════════════════════════════════════════
+/**
+ * Convierte una fecha de Sheets o de la API a su día de calendario en la
+ * zona horaria de la aplicación. No se debe usar `split('T')[0]`: Sheets
+ * serializa una fecha local a UTC y, en España, ese valor puede pertenecer
+ * al día anterior.
+ */
+function app_normalizarFecha(valor) {
+  if (valor === null || valor === undefined || valor === '') return '';
+
+  var texto = String(valor);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) return texto;
+
+  var fecha = valor instanceof Date ? valor : new Date(texto);
+  if (isNaN(fecha.getTime())) return texto;
+  return Utilities.formatDate(fecha, CONFIG.TIMEZONE, 'yyyy-MM-dd');
+}
+
+/** Crea una fecha a mediodía UTC para operar con días sin desfases horarios. */
+function app_crearFechaCalendario(fechaTexto) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaTexto || '')) {
+    throw new Error('Fecha no válida: ' + fechaTexto);
+  }
+  var partes = fechaTexto.split('-');
+  return new Date(Date.UTC(Number(partes[0]), Number(partes[1]) - 1, Number(partes[2]), 12));
+}
+
 
 /**
  * Lee todos los datos de una hoja y los devuelve como un array de objetos JSON
@@ -294,11 +320,11 @@ function generarEstructuraHoja() {
 /**
  * Verifica la contraseña del administrador.
  */
-function loginAdmin(password) {
+function loginAdmin_(password) {
   // Contraseña por defecto o guardada en configuración
-  var currentPassword = getConfigValue('admin_password') || 'Aomame232<';
+  var currentPassword = getConfigValue('admin_password');
   if (password === currentPassword) {
-    return { success: true, token: 'admin_token_ok' };
+    return { success: true };
   } else {
     return { success: false, message: 'Contraseña incorrecta' };
   }
