@@ -1682,6 +1682,25 @@ tbody tr:hover {
     margin: 10px auto;
   }
 
+  .modal-footer {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+
+  .modal-footer .btn {
+    width: 100%;
+    margin: 0;
+    padding: 10px 8px;
+    font-size: 13px;
+    justify-content: center;
+    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
   .table-responsive {
     width: 100%;
     overflow-x: auto;
@@ -1784,15 +1803,30 @@ tbody tr:hover {
   .modal-content {
     width: 96%;
     padding: 16px 12px;
+    max-height: 90vh;
   }
 
   .modal-footer {
-    flex-direction: column-reverse;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
+    width: 100%;
   }
 
   .modal-footer .btn {
     width: 100%;
+    margin: 0;
+    padding: 10px 6px;
+    font-size: 12px;
+    justify-content: center;
+    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .modal-footer .btn:last-child:nth-child(odd) {
+    grid-column: span 2;
   }
 
   .hide-mobile {

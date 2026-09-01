@@ -555,13 +555,14 @@ const admin = {
     content.innerHTML = html;
 
     // Acciones según estado
-    var actionsHtml = '<button class="btn btn-secondary" onclick="app.closeModal(\'modal-detalle-cita\')">Cerrar</button>';
-    actionsHtml += ' <button class="btn btn-primary btn-sm" onclick="app.closeModal(\'modal-detalle-cita\'); admin.openEditarCitaModal(' + JSON.stringify(cita).replace(/"/g, '&quot;') + ')"><i class="ri-edit-line"></i> Modificar</button>';
+    var actionsHtml = '';
+    actionsHtml += '<button class="btn btn-primary" onclick="app.closeModal(\'modal-detalle-cita\'); admin.openEditarCitaModal(' + JSON.stringify(cita).replace(/"/g, '&quot;') + ')"><i class="ri-edit-line"></i> Modificar</button>';
     if (cita.Estado === 'confirmada') {
-      actionsHtml += ' <button class="btn btn-danger btn-sm" onclick="admin.cambiarEstadoCita(\'' + cita.ID + '\', \'cancelada\')"><i class="ri-close-circle-line"></i> Cancelar</button>';
-      actionsHtml += ' <button class="btn btn-secondary btn-sm" onclick="admin.cambiarEstadoCita(\'' + cita.ID + '\', \'no_show\')"><i class="ri-user-unfollow-line"></i> No presentado</button>';
-      actionsHtml += ' <button class="btn btn-success btn-sm" onclick="admin.cambiarEstadoCita(\'' + cita.ID + '\', \'completada\')"><i class="ri-check-line"></i> Completada</button>';
+      actionsHtml += '<button class="btn btn-success" onclick="admin.cambiarEstadoCita(\'' + cita.ID + '\', \'completada\')"><i class="ri-check-line"></i> Completar</button>';
+      actionsHtml += '<button class="btn btn-secondary" onclick="admin.cambiarEstadoCita(\'' + cita.ID + '\', \'no_show\')"><i class="ri-user-unfollow-line"></i> No asistió</button>';
+      actionsHtml += '<button class="btn btn-danger" onclick="admin.cambiarEstadoCita(\'' + cita.ID + '\', \'cancelada\')"><i class="ri-close-circle-line"></i> Cancelar</button>';
     }
+    actionsHtml += '<button class="btn btn-secondary" onclick="app.closeModal(\'modal-detalle-cita\')"><i class="ri-close-line"></i> Cerrar</button>';
     actions.innerHTML = actionsHtml;
 
     app.openModal('modal-detalle-cita');
