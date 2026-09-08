@@ -76,6 +76,7 @@ function doPost(e) {
       'loginAdmin': { fn: loginAdmin, admin: false },
       'getConfigPublica': { fn: getConfigPublica, admin: false },
       'getAvailableSlots': { fn: getAvailableSlots, admin: false },
+      'getMonthAvailability': { fn: getMonthAvailability, admin: false },
       'crearReserva': { fn: crearReserva, admin: false },
       'cancelarReserva': { fn: cancelarReserva, admin: false },
       'reagendarReserva': { fn: reagendarReserva, admin: false },

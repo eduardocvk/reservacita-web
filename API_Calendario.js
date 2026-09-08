@@ -9,17 +9,22 @@
  * @return {Array} Array de eventos con start, end, title, allDay
  */
 function getCalendarEvents(dateString) {
+  var date = new Date(dateString + 'T00:00:00');
+  var nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + 1);
+  return getCalendarEventsRange(dateString, Utilities.formatDate(nextDate, CONFIG.TIMEZONE, 'yyyy-MM-dd'));
+}
+
+/** Lee eventos de calendario de un rango [inicio, fin) en una sola consulta por calendario. */
+function getCalendarEventsRange(startDateString, endDateString) {
   try {
     var config = getAllConfig();
     var calIds = (config.calendarios_disponibilidad || '').split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s; });
 
     if (calIds.length === 0) return [];
 
-    var date = new Date(dateString + 'T00:00:00');
-    var startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    var endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    var rangeStart = new Date(startDateString + 'T00:00:00');
+    var rangeEnd = new Date(endDateString + 'T00:00:00');
 
     var allEvents = [];
 
@@ -31,7 +36,7 @@ function getCalendarEvents(dateString) {
           return;
         }
 
-        var events = cal.getEvents(startOfDay, endOfDay);
+        var events = cal.getEvents(rangeStart, rangeEnd);
         events.forEach(function(ev) {
           // Ignorar eventos de todo el día que no bloqueen (ej: cumpleaños)
           // Pero incluir los que sí bloqueen (ej: "Vacaciones")

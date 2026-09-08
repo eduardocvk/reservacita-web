@@ -10,9 +10,10 @@
  * @param {number|string} serviceId - ID del servicio solicitado
  * @return {Array} Array de {hora: "HH:MM", disponible: boolean}
  */
-function getAvailableSlots(dateString, serviceId) {
+function getAvailableSlots(dateString, serviceId, availabilityContext) {
   try {
-    var config = getAllConfig();
+    var context = availabilityContext || {};
+    var config = context.config || getAllConfig();
     var intervalo = parseInt(config.intervalo_slots_minutos) || 15;
     var antelacionMinima = parseInt(config.antelacion_minima_horas) || 24;
     var antelacionMaxima = parseInt(config.antelacion_maxima_dias) || 60;
@@ -34,14 +35,15 @@ function getAvailableSlots(dateString, serviceId) {
     if (targetDate > maxDate) return [];
 
     // ─── 2. Obtener servicio ───
-    var servicios = getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_SERVICIOS);
+    var servicios = context.servicios || getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_SERVICIOS);
     var servicio = servicios.find(function(s) { return s.ID == serviceId; });
     if (!servicio) servicio = servicios[0]; // fallback al primero
     var duracionSesion = parseInt(servicio ? servicio.Duracion_Minutos : config.duracion_sesion_minutos) || 60;
     var tipoServicio = servicio ? servicio.Tipo : 'consulta';
+    var margenServicioSolicitado = tipoServicio === 'domicilio' ? margenDomicilio : margenConsulta;
 
     // ─── 3. Obtener bloques horarios del día ───
-    var bloques = getBloquesDia(dateString);
+    var bloques = getBloquesDia(dateString, context);
     if (!bloques || bloques.length === 0) return []; // Día cerrado
 
     // ─── 4. Generar todos los slots posibles ───
@@ -63,10 +65,16 @@ function getAvailableSlots(dateString, serviceId) {
     if (allSlots.length === 0) return [];
 
     // ─── 5. Obtener eventos del calendario ───
-    var calendarEvents = getCalendarEvents(dateString);
+    var dayStart = new Date(dateString + 'T00:00:00').getTime();
+    var dayEndDate = new Date(dayStart);
+    dayEndDate.setDate(dayEndDate.getDate() + 1);
+    var dayEnd = dayEndDate.getTime();
+    var calendarEvents = context.calendarEvents
+      ? context.calendarEvents.filter(function(ev) { return ev.start < dayEnd && ev.end > dayStart; })
+      : getCalendarEvents(dateString);
 
     // ─── 6. Obtener citas existentes confirmadas ───
-    var citas = getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_CITAS);
+    var citas = context.citas || getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_CITAS);
     var citasDelDia = citas.filter(function(c) {
       var citaFecha = c.Fecha;
       citaFecha = app_normalizarFecha(citaFecha);
@@ -85,8 +93,11 @@ function getAvailableSlots(dateString, serviceId) {
         var evStartMin = getMinutesOfDay(new Date(ev.start));
         var evEndMin = getMinutesOfDay(new Date(ev.end));
 
-        // Hay solapamiento si el slot y el evento se superponen
-        if (slot.startMin < evEndMin && slot.endMin > evStartMin) {
+        // Los eventos de Calendar también deben respetar el margen configurado.
+        // Se amplía el candidato por ambos lados para impedir reservar pegado
+        // tanto antes como después de un evento ya existente.
+        if (slot.startMin - margenServicioSolicitado < evEndMin &&
+            slot.endMin + margenServicioSolicitado > evStartMin) {
           slot.disponible = false;
         }
       });
@@ -109,8 +120,11 @@ function getAvailableSlots(dateString, serviceId) {
         }
         var citaEndConMargen = citaEnd + margen;
 
-        // El slot no puede solaparse con la cita + su margen posterior
-        if (slot.startMin < citaEndConMargen && slot.endMin > citaStart) {
+        // Comprobar ambas direcciones del margen:
+        // - si la cita existente va antes, se aplica su margen posterior;
+        // - si el slot solicitado va antes, se aplica el margen del nuevo servicio.
+        if (slot.startMin < citaEndConMargen &&
+            slot.endMin + margenServicioSolicitado > citaStart) {
           slot.disponible = false;
         }
 
@@ -157,6 +171,38 @@ function checkSlotAvailability(dateString, timeString, serviceId) {
   return slot ? slot.disponible : false;
 }
 
+/**
+ * Indica qué días de un mes conservan al menos un hueco disponible.
+ * El mes usa la numeración de JavaScript (0 = enero, 11 = diciembre).
+ */
+function getMonthAvailability(year, month, serviceId) {
+  year = parseInt(year, 10);
+  month = parseInt(month, 10);
+  if (!isFinite(year) || month < 0 || month > 11) {
+    throw new Error('Mes no válido.');
+  }
+
+  var result = {};
+  var daysInMonth = new Date(year, month + 1, 0).getDate();
+  var monthStart = year + '-' + String(month + 1).padStart(2, '0') + '-01';
+  var nextMonthDate = new Date(year, month + 1, 1);
+  var nextMonthStart = nextMonthDate.getFullYear() + '-' + String(nextMonthDate.getMonth() + 1).padStart(2, '0') + '-01';
+  var context = {
+    config: getAllConfig(),
+    servicios: getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_SERVICIOS),
+    citas: getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_CITAS),
+    excepciones: getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_EXCEPCIONES),
+    horarios: getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_HORARIOS),
+    calendarEvents: getCalendarEventsRange(monthStart, nextMonthStart)
+  };
+  for (var day = 1; day <= daysInMonth; day++) {
+    var dateString = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+    var slots = getAvailableSlots(dateString, serviceId, context);
+    result[dateString] = slots.some(function(slot) { return slot.disponible === true; });
+  }
+  return result;
+}
+
 
 /**
  * Obtiene los bloques horarios de un día específico,
@@ -164,9 +210,10 @@ function checkSlotAvailability(dateString, timeString, serviceId) {
  * @param {string} dateString - Fecha YYYY-MM-DD
  * @return {Array} Array de {inicio: "HH:MM", fin: "HH:MM"} o vacío si cerrado
  */
-function getBloquesDia(dateString) {
+function getBloquesDia(dateString, availabilityContext) {
+  var context = availabilityContext || {};
   // 1. Comprobar excepciones
-  var excepciones = getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_EXCEPCIONES);
+  var excepciones = context.excepciones || getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_EXCEPCIONES);
   var excepcion = excepciones.find(function(exc) {
     var excFecha = exc.Fecha;
     excFecha = app_normalizarFecha(excFecha);
@@ -192,7 +239,7 @@ function getBloquesDia(dateString) {
   var diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   var diaNombre = diasSemana[date.getDay()];
 
-  var horarios = getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_HORARIOS);
+  var horarios = context.horarios || getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_HORARIOS);
   var horario = horarios.find(function(h) { return h.Dia === diaNombre; });
 
   if (!horario || !(horario.Abierto === true || horario.Abierto === 'TRUE')) return [];
