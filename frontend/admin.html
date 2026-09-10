@@ -3542,19 +3542,60 @@ const admin = {
     return app.fetchData('getDashboardData', startDate, endDate).then(data => {
       // Si el usuario cambia de semana deprisa, ignorar respuestas antiguas.
       if (requestId !== this.state.calendarRequestId) return;
-      data = data || {};
-      this.state.stats = data.stats || {};
-      this.state.citas = data.proximas || [];
-      this.state.todasCitas = data.citasCalendario || [];
-      this.state.horarios = data.horarios || [];
-      this.state.excepciones = data.excepciones || [];
-      if (data.servicios) this.state.servicios = data.servicios;
-      this.renderDashboard();
-      this.populateServicioSelects();
-      this.renderWeeklyCalendar();
+      this.applyDashboardData(data);
     }).catch(err => {
       if (requestId !== this.state.calendarRequestId) return;
-      this.state.calendarRangeKey = '';
+      // Compatibilidad con despliegues anteriores de la API pública. Esto
+      // evita que el calendario quede vacío si frontend y backend se actualizan
+      // en momentos distintos.
+      return this.loadDashboardRangeLegacy(startDate, endDate, requestId);
+    });
+  },
+
+  applyDashboardData: function(data) {
+    data = data || {};
+    this.state.stats = data.stats || {};
+    this.state.citas = data.proximas || [];
+    this.state.todasCitas = data.citasCalendario || [];
+    this.state.horarios = data.horarios || [];
+    this.state.excepciones = data.excepciones || [];
+    if (data.servicios) this.state.servicios = data.servicios;
+    this.renderDashboard();
+    this.populateServicioSelects();
+    this.renderWeeklyCalendar();
+  },
+
+  loadDashboardRangeLegacy: function(startDate, endDate, requestId) {
+    return Promise.all([
+      app.fetchData('getEstadisticas'),
+      app.fetchData('getCitasTodas'),
+      app.fetchData('getHorarios'),
+      app.fetchData('getExcepciones'),
+      app.fetchData('getServicios')
+    ]).then(results => {
+      if (requestId !== this.state.calendarRequestId) return;
+      var todas = results[1] || [];
+      var hoy = app.dateToString(new Date());
+      var proximas = todas.filter(function(cita) {
+        return cita.Fecha >= hoy && cita.Estado === 'confirmada';
+      }).sort(function(a, b) {
+        if (a.Fecha === b.Fecha) return a.Hora_Inicio > b.Hora_Inicio ? 1 : -1;
+        return a.Fecha > b.Fecha ? 1 : -1;
+      }).slice(0, 10);
+      this.applyDashboardData({
+        stats: results[0] || {},
+        proximas: proximas,
+        citasCalendario: todas.filter(function(cita) {
+          return cita.Fecha >= startDate && cita.Fecha < endDate && cita.Estado !== 'cancelada';
+        }),
+        horarios: results[2] || [],
+        excepciones: (results[3] || []).filter(function(exc) {
+          return exc.Fecha >= startDate && exc.Fecha < endDate;
+        }),
+        servicios: results[4] || []
+      });
+    }).catch(err => {
+      if (requestId === this.state.calendarRequestId) this.state.calendarRangeKey = '';
       throw err;
     });
   },
