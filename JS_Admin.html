@@ -241,6 +241,13 @@ const admin = {
     var requestId = ++this.state.calendarRequestId;
     this.state.calendarRangeKey = rangeKey;
 
+    // El frontend estático usa la API pública actualmente desplegada, que aún
+    // no expone la llamada agregada. Ir directamente al modo compatible evita
+    // una petición fallida y acelera el primer render.
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      return this.loadDashboardRangeLegacy(startDate, endDate, requestId);
+    }
+
     return app.fetchData('getDashboardData', startDate, endDate).then(data => {
       // Si el usuario cambia de semana deprisa, ignorar respuestas antiguas.
       if (requestId !== this.state.calendarRequestId) return;

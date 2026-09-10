@@ -3140,16 +3140,29 @@ const app = {
         var API_URL = 'https://script.google.com/macros/s/AKfycbwpWrPGs3kyr8l1hJhDFa9WBx_JZpQ3bqX05U_p9pGP401kAZGWcmw9V2mFI9YByKmb/exec';
         var token = '';
         try { token = sessionStorage.getItem('adminToken') || ''; } catch (e) {}
-        fetch(API_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: serverFunctionName, params: args, token: token })
-        })
-          .then(response => response.json())
-          .then(result => {
-            if (result && result.error) reject(new Error(result.error));
-            else resolve(result ? (result.data !== undefined ? result.data : result) : null);
-          })
-          .catch(reject);
+        var requestBody = JSON.stringify({ action: serverFunctionName, params: args, token: token });
+        var runRequest = function(attempt) {
+          return fetch(API_URL, { method: 'POST', body: requestBody })
+            .then(function(response) { return response.text(); })
+            .then(function(text) {
+              try {
+                return JSON.parse(text);
+              } catch (parseError) {
+                // Apps Script puede responder ocasionalmente con una página
+                // HTML intermedia. Reintentar una vez evita dejar el panel vacío.
+                if (attempt === 0) {
+                  return new Promise(function(resolveRetry) {
+                    setTimeout(resolveRetry, 500);
+                  }).then(function() { return runRequest(1); });
+                }
+                throw new Error('El servicio devolvió una respuesta no válida. Recarga la página.');
+              }
+            });
+        };
+        runRequest(0).then(function(result) {
+          if (result && result.error) reject(new Error(result.error));
+          else resolve(result ? (result.data !== undefined ? result.data : result) : null);
+        }).catch(reject);
         return;
       }
       if (typeof google.script.run[serverFunctionName] !== 'function') {
@@ -3538,6 +3551,13 @@ const admin = {
     var rangeKey = startDate + '|' + endDate;
     var requestId = ++this.state.calendarRequestId;
     this.state.calendarRangeKey = rangeKey;
+
+    // El frontend estático usa la API pública actualmente desplegada, que aún
+    // no expone la llamada agregada. Ir directamente al modo compatible evita
+    // una petición fallida y acelera el primer render.
+    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+      return this.loadDashboardRangeLegacy(startDate, endDate, requestId);
+    }
 
     return app.fetchData('getDashboardData', startDate, endDate).then(data => {
       // Si el usuario cambia de semana deprisa, ignorar respuestas antiguas.
