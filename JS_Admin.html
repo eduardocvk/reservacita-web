@@ -16,7 +16,9 @@ const admin = {
     stats: {},
     calendarWeekOffset: 0,
     calendar: null,
-    pendingCalendarSelection: null
+    pendingCalendarSelection: null,
+    calendarRangeKey: '',
+    calendarRequestId: 0
   },
   currentClienteEmail: null,
 
@@ -48,17 +50,10 @@ const admin = {
     document.getElementById('app-wrapper').style.display = 'flex';
     app.showLoader('Cargando panel...');
 
-    // Cargar datos iniciales
-    Promise.all([
-      app.fetchData('getProximasCitas').catch(() => []),
-      app.fetchData('getEstadisticas').catch(() => ({})),
-      app.fetchData('getServicios').catch(() => [])
-    ]).then(([citas, stats, servicios]) => {
-      this.state.citas = citas || [];
-      this.state.stats = stats || {};
-      this.state.servicios = servicios || [];
-      this.renderDashboard();
-      this.populateServicioSelects();
+    // Una única llamada trae todo lo necesario para pintar el dashboard y
+    // evita que varias lecturas simultáneas de Sheets se bloqueen entre sí.
+    var range = this.getDefaultCalendarRange();
+    this.loadDashboardRange(range.start, range.end).then(() => {
       this.initPWA();
       app.hideLoader();
     }).catch(err => {
@@ -220,36 +215,50 @@ const admin = {
   },
 
   refreshDashboard: function() {
-    app.fetchData('getEstadisticas').then(stats => {
-      this.state.stats = stats || {};
+    var range = this.getCurrentCalendarRange();
+    return this.loadDashboardRange(range.start, range.end);
+  },
+
+  getDefaultCalendarRange: function() {
+    var today = new Date();
+    var day = today.getDay() || 7;
+    var start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - day + 1);
+    var end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    return { start: app.dateToString(start), end: app.dateToString(end) };
+  },
+
+  getCurrentCalendarRange: function() {
+    if (!this.state.calendar || !this.state.calendar.view) return this.getDefaultCalendarRange();
+    return {
+      start: app.dateToString(this.state.calendar.view.activeStart),
+      end: app.dateToString(this.state.calendar.view.activeEnd)
+    };
+  },
+
+  loadDashboardRange: function(startDate, endDate) {
+    var rangeKey = startDate + '|' + endDate;
+    var requestId = ++this.state.calendarRequestId;
+    this.state.calendarRangeKey = rangeKey;
+
+    return app.fetchData('getDashboardData', startDate, endDate).then(data => {
+      // Si el usuario cambia de semana deprisa, ignorar respuestas antiguas.
+      if (requestId !== this.state.calendarRequestId) return;
+      data = data || {};
+      this.state.stats = data.stats || {};
+      this.state.citas = data.proximas || [];
+      this.state.todasCitas = data.citasCalendario || [];
+      this.state.horarios = data.horarios || [];
+      this.state.excepciones = data.excepciones || [];
+      if (data.servicios) this.state.servicios = data.servicios;
       this.renderDashboard();
-    }).catch(() => {});
-
-    app.fetchData('getCitasTodas').then(citas => {
-      this.state.todasCitas = citas || [];
-      var proximas = (citas || []).filter(c => c.Fecha >= app.dateToString(new Date()) && c.Estado === 'confirmada');
-      proximas.sort((a, b) => {
-        if (a.Fecha === b.Fecha) return a.Hora_Inicio > b.Hora_Inicio ? 1 : -1;
-        return a.Fecha > b.Fecha ? 1 : -1;
-      });
-      this.state.citas = proximas.slice(0, 10);
-      this.renderProximasCitas();
-      if (this.state.horarios && this.state.horarios.length > 0) {
-        this.renderWeeklyCalendar();
-      }
-    }).catch(() => {});
-
-    app.fetchData('getHorarios').then(horarios => {
-      this.state.horarios = horarios || [];
-      if (this.state.citas) {
-        this.renderWeeklyCalendar();
-      }
-    }).catch(() => {});
-
-    app.fetchData('getExcepciones').then(excepciones => {
-      this.state.excepciones = excepciones || [];
-      if (this.state.citas) this.renderWeeklyCalendar();
-    }).catch(() => {});
+      this.populateServicioSelects();
+      this.renderWeeklyCalendar();
+    }).catch(err => {
+      if (requestId !== this.state.calendarRequestId) return;
+      this.state.calendarRangeKey = '';
+      throw err;
+    });
   },
 
   changeCalendarWeek: function(delta) {
@@ -445,6 +454,17 @@ const admin = {
         eventClick: function(info) { admin.handleCalendarEventClick(info); },
         eventDrop: function(info) { admin.persistCalendarEvent(info); },
         eventResize: function(info) { admin.persistCalendarEvent(info); },
+        datesSet: function(info) {
+          var start = app.dateToString(info.start);
+          var end = app.dateToString(info.end);
+          var rangeKey = start + '|' + end;
+          if (rangeKey !== admin.state.calendarRangeKey) {
+            admin.loadDashboardRange(start, end).catch(function(err) {
+              console.error('Error cargando semana del calendario:', err);
+              app.showToast('No se pudo cargar esta semana. Inténtalo de nuevo.', 'error');
+            });
+          }
+        },
         eventDidMount: function(info) {
           info.el.title = info.event.extendedProps.tooltip || info.event.title;
         }

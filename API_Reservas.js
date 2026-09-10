@@ -444,6 +444,82 @@ function getEstadisticas() {
 }
 
 /**
+ * Carga en una sola ejecución todo lo necesario para el dashboard.
+ * Solo devuelve al navegador las citas del intervalo visible del calendario,
+ * aunque reutiliza la lectura completa para calcular KPIs y próximas citas.
+ */
+function getDashboardData(rangeStart, rangeEnd) {
+  try {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rangeStart || '') ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(rangeEnd || '') ||
+        rangeEnd <= rangeStart) {
+      return { error: 'El intervalo del calendario no es válido.' };
+    }
+
+    var now = new Date();
+    var hoy = Utilities.formatDate(now, CONFIG.TIMEZONE, 'yyyy-MM-dd');
+    var inicioSemana = new Date(now);
+    var day = inicioSemana.getDay();
+    inicioSemana.setDate(inicioSemana.getDate() - (day === 0 ? 6 : day - 1));
+    var inicioSemanaStr = Utilities.formatDate(inicioSemana, CONFIG.TIMEZONE, 'yyyy-MM-dd');
+    var inicioMes = Utilities.formatDate(
+      new Date(now.getFullYear(), now.getMonth(), 1),
+      CONFIG.TIMEZONE,
+      'yyyy-MM-dd'
+    );
+
+    var citas = getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_CITAS);
+    var servicios = getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_SERVICIOS);
+    var serviceNames = {};
+    servicios.forEach(function(servicio) {
+      serviceNames[String(servicio.ID)] = servicio.Nombre || '';
+    });
+
+    citas.forEach(function(cita) {
+      cita.Fecha = app_normalizarFecha(cita.Fecha);
+      if (cita.Hora_Inicio) cita.Hora_Inicio = formatTimeValue(cita.Hora_Inicio);
+      if (cita.Hora_Fin) cita.Hora_Fin = formatTimeValue(cita.Hora_Fin);
+      cita.servicio_nombre = serviceNames[String(cita.Servicio_ID)] || '';
+    });
+
+    var proximas = citas.filter(function(cita) {
+      return cita.Fecha >= hoy && cita.Estado === 'confirmada';
+    }).sort(function(a, b) {
+      if (a.Fecha === b.Fecha) return a.Hora_Inicio > b.Hora_Inicio ? 1 : -1;
+      return a.Fecha > b.Fecha ? 1 : -1;
+    }).slice(0, 10);
+
+    var citasCalendario = citas.filter(function(cita) {
+      return cita.Fecha >= rangeStart && cita.Fecha < rangeEnd && cita.Estado !== 'cancelada';
+    });
+
+    var excepciones = getExcepciones().filter(function(exc) {
+      return exc.Fecha >= rangeStart && exc.Fecha < rangeEnd;
+    });
+
+    return {
+      stats: {
+        citasHoy: citas.filter(function(c) { return c.Fecha === hoy && c.Estado === 'confirmada'; }).length,
+        citasSemana: citas.filter(function(c) {
+          return c.Fecha >= inicioSemanaStr && c.Fecha <= hoy && c.Estado === 'confirmada';
+        }).length,
+        citasPendientes: citas.filter(function(c) { return c.Fecha >= hoy && c.Estado === 'confirmada'; }).length,
+        cancelacionesMes: citas.filter(function(c) {
+          return c.Fecha >= inicioMes && c.Estado === 'cancelada';
+        }).length
+      },
+      proximas: proximas,
+      citasCalendario: citasCalendario,
+      horarios: getHorarios(),
+      excepciones: excepciones,
+      servicios: servicios
+    };
+  } catch (e) {
+    return { error: 'Error cargando el dashboard: ' + e.toString() };
+  }
+}
+
+/**
  * Cambia el estado de una cita (admin).
  */
 function actualizarEstadoCita(citaId, nuevoEstado) {

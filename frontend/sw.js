@@ -1,8 +1,10 @@
 // Service Worker para ReservaCita Admin PWA
-const CACHE_NAME = 'reservacita-admin-v3';
+const CACHE_NAME = 'reservacita-admin-v4';
 const ASSETS_TO_CACHE = [
   './admin.html',
   './admin-manifest.json',
+  './vendor/fullcalendar/index.global.min.js',
+  './vendor/fullcalendar/es.global.min.js',
   'https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css',
   'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap',
   'https://osteopatiamadrid.com/lovable-uploads/eduardo-callejo-logo.png'

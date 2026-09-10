@@ -98,6 +98,7 @@ function doPost(e) {
       'getCitasTodas': { fn: getCitasTodas, admin: true },
       'getProximasCitas': { fn: getProximasCitas, admin: true },
       'getEstadisticas': { fn: getEstadisticas, admin: true },
+      'getDashboardData': { fn: getDashboardData, admin: true },
       'actualizarEstadoCita': { fn: actualizarEstadoCita, admin: true },
       'getClientes': { fn: getClientes, admin: true },
       'getCitasPorCliente': { fn: getCitasPorCliente, admin: true },
