@@ -30,18 +30,24 @@
 <div class="card" style="margin-bottom: 24px;">
   <div class="card-header">
     <h3 class="card-title"><i class="ri-calendar-event-line"></i> Calendario Semanal</h3>
-    <div style="display: flex; align-items: center; gap: 12px;">
-      <button class="btn btn-sm btn-secondary" onclick="admin.changeCalendarWeek(-1)"><i class="ri-arrow-left-s-line"></i> Anterior</button>
-      <div id="weekly-calendar-header" style="font-weight: 500; color: var(--text-dark); min-width: 200px; text-align: center;"></div>
-      <button class="btn btn-sm btn-secondary" onclick="admin.changeCalendarWeek(1)">Siguiente <i class="ri-arrow-right-s-line"></i></button>
-      <button class="btn btn-sm btn-secondary" onclick="admin.changeCalendarWeek(0)" style="margin-left: 8px;"><i class="ri-refresh-line"></i> Hoy</button>
-    </div>
   </div>
   <div class="card-body" style="padding: 16px;">
     <div class="weekly-calendar-container">
-      <div id="weekly-calendar-grid" class="weekly-calendar">
-        <!-- El calendario se renderiza desde JS -->
-      </div>
+      <div id="weekly-calendar-grid"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-calendar-create">
+  <div class="modal-content" style="max-width: 430px;">
+    <div class="modal-header">
+      <h3 class="modal-title"><i class="ri-add-circle-line text-primary"></i> Crear en el calendario</h3>
+      <button class="modal-close" onclick="admin.cancelCalendarCreate()"><i class="ri-close-line"></i></button>
+    </div>
+    <p id="calendar-selection-summary" class="text-muted" style="margin-bottom:20px;"></p>
+    <div class="calendar-create-actions">
+      <button class="btn btn-primary" onclick="admin.createAppointmentFromCalendar()"><i class="ri-user-add-line"></i> Nueva cita</button>
+      <button class="btn btn-secondary" onclick="admin.createBlockFromCalendar()"><i class="ri-calendar-close-line"></i> Bloquear horas</button>
     </div>
   </div>
 </div>

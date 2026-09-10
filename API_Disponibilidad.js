@@ -212,27 +212,14 @@ function getMonthAvailability(year, month, serviceId) {
  */
 function getBloquesDia(dateString, availabilityContext) {
   var context = availabilityContext || {};
-  // 1. Comprobar excepciones
+  // 1. Obtener todas las excepciones del día. Puede haber varios bloqueos
+  // parciales, pero un cierre completo siempre tiene prioridad.
   var excepciones = context.excepciones || getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_EXCEPCIONES);
-  var excepcion = excepciones.find(function(exc) {
-    var excFecha = exc.Fecha;
-    excFecha = app_normalizarFecha(excFecha);
-    return excFecha === dateString;
+  var excepcionesDia = excepciones.filter(function(exc) {
+    return app_normalizarFecha(exc.Fecha) === dateString;
   });
 
-  if (excepcion) {
-    if (excepcion.Tipo === 'cerrado') return []; // Día cerrado
-    if (excepcion.Tipo === 'especial') {
-      var bloques = [];
-      if (excepcion.Hora_Inicio_1 && excepcion.Hora_Fin_1) {
-        bloques.push({ inicio: excepcion.Hora_Inicio_1, fin: excepcion.Hora_Fin_1 });
-      }
-      if (excepcion.Hora_Inicio_2 && excepcion.Hora_Fin_2) {
-        bloques.push({ inicio: excepcion.Hora_Inicio_2, fin: excepcion.Hora_Fin_2 });
-      }
-      return bloques;
-    }
-  }
+  if (excepcionesDia.some(function(exc) { return exc.Tipo === 'cerrado'; })) return [];
 
   // 2. Horario semanal
   var date = new Date(dateString + 'T12:00:00'); // mediodía para evitar problemas timezone
@@ -241,16 +228,51 @@ function getBloquesDia(dateString, availabilityContext) {
 
   var horarios = context.horarios || getSheetDataAsJson(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_HORARIOS);
   var horario = horarios.find(function(h) { return h.Dia === diaNombre; });
+  var especial = excepcionesDia.find(function(exc) { return exc.Tipo === 'especial'; });
 
-  if (!horario || !(horario.Abierto === true || horario.Abierto === 'TRUE')) return [];
+  if ((!horario || !(horario.Abierto === true || horario.Abierto === 'TRUE')) && !especial) return [];
 
   var bloques = [];
-  if (horario.Hora_Inicio_1 && horario.Hora_Fin_1) {
+  if (horario && horario.Hora_Inicio_1 && horario.Hora_Fin_1) {
     bloques.push({ inicio: formatTimeValue(horario.Hora_Inicio_1), fin: formatTimeValue(horario.Hora_Fin_1) });
   }
-  if (horario.Hora_Inicio_2 && horario.Hora_Fin_2) {
+  if (horario && horario.Hora_Inicio_2 && horario.Hora_Fin_2) {
     bloques.push({ inicio: formatTimeValue(horario.Hora_Inicio_2), fin: formatTimeValue(horario.Hora_Fin_2) });
   }
+
+  // Un horario especial sustituye el horario semanal de ese día.
+  if (especial) {
+    bloques = [];
+    if (especial.Hora_Inicio_1 && especial.Hora_Fin_1) {
+      bloques.push({ inicio: formatTimeValue(especial.Hora_Inicio_1), fin: formatTimeValue(especial.Hora_Fin_1) });
+    }
+    if (especial.Hora_Inicio_2 && especial.Hora_Fin_2) {
+      bloques.push({ inicio: formatTimeValue(especial.Hora_Inicio_2), fin: formatTimeValue(especial.Hora_Fin_2) });
+    }
+  }
+
+  // Los bloqueos parciales recortan el horario disponible sin alterar el resto.
+  excepcionesDia.filter(function(exc) { return exc.Tipo === 'bloqueo'; }).forEach(function(exc) {
+    var bloqueoInicio = timeToMinutes(exc.Hora_Inicio_1);
+    var bloqueoFin = timeToMinutes(exc.Hora_Fin_1);
+    var restantes = [];
+
+    bloques.forEach(function(bloque) {
+      var inicio = timeToMinutes(bloque.inicio);
+      var fin = timeToMinutes(bloque.fin);
+      if (bloqueoFin <= inicio || bloqueoInicio >= fin) {
+        restantes.push(bloque);
+        return;
+      }
+      if (bloqueoInicio > inicio) {
+        restantes.push({ inicio: minutesToTime(inicio), fin: minutesToTime(Math.min(bloqueoInicio, fin)) });
+      }
+      if (bloqueoFin < fin) {
+        restantes.push({ inicio: minutesToTime(Math.max(bloqueoFin, inicio)), fin: minutesToTime(fin) });
+      }
+    });
+    bloques = restantes;
+  });
 
   return bloques;
 }

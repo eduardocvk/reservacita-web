@@ -488,7 +488,12 @@ function modificarReservaAdmin(datos) {
 
     var duracion = parseInt(servicio.Duracion_Minutos) || 60;
     var horaInicio = datos.hora || cita.Hora_Inicio;
-    var horaFin = minutesToTime(timeToMinutes(horaInicio) + duracion);
+    var horaFin = datos.hora_fin || minutesToTime(timeToMinutes(horaInicio) + duracion);
+    horaInicio = formatTimeValue(horaInicio);
+    horaFin = formatTimeValue(horaFin);
+    if (timeToMinutes(horaInicio) >= timeToMinutes(horaFin)) {
+      return { success: false, message: 'La hora de fin debe ser posterior a la de inicio.' };
+    }
 
     // Calcular desplazamiento si es a domicilio
     var tiempoDesplazamiento = cita.Tiempo_Desplazamiento || '';

@@ -1955,4 +1955,68 @@ tbody tr:hover {
   box-shadow: 0 4px 8px rgba(0,0,0,0.15);
   z-index: 20;
 }
+
+/* ─── FullCalendar: agenda semanal interactiva ─── */
+#weekly-calendar-grid {
+  --fc-border-color: #e6eaed;
+  --fc-button-bg-color: var(--primary);
+  --fc-button-border-color: var(--primary);
+  --fc-button-hover-bg-color: var(--primary-dark);
+  --fc-button-hover-border-color: var(--primary-dark);
+  --fc-button-active-bg-color: var(--primary-dark);
+  --fc-today-bg-color: rgba(42, 157, 143, 0.07);
+  min-width: 760px;
+}
+
+#weekly-calendar-grid .fc-toolbar-title {
+  color: var(--text-dark);
+  font-family: 'Playfair Display', serif;
+  font-size: 1.25rem;
+}
+
+#weekly-calendar-grid .fc-button {
+  border-radius: 8px;
+  box-shadow: none;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: none;
+}
+
+#weekly-calendar-grid .fc-col-header-cell-cushion,
+#weekly-calendar-grid .fc-timegrid-axis-cushion,
+#weekly-calendar-grid .fc-timegrid-slot-label-cushion {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+#weekly-calendar-grid .fc-timegrid-slot {
+  height: 2.3em;
+}
+
+#weekly-calendar-grid .fc-event {
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 2px 4px;
+  box-shadow: 0 2px 6px rgba(38, 70, 83, 0.12);
+}
+
+#weekly-calendar-grid .calendar-event-block {
+  background: repeating-linear-gradient(135deg, #fff1e8, #fff1e8 8px, #ffe2d0 8px, #ffe2d0 16px) !important;
+  border-left: 4px solid #e76f51 !important;
+  color: #9b3d28 !important;
+}
+
+.calendar-create-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 720px) {
+  #weekly-calendar-grid { min-width: 680px; }
+  #weekly-calendar-grid .fc-toolbar { align-items: flex-start; gap: 8px; }
+  #weekly-calendar-grid .fc-toolbar-title { font-size: 1rem; }
+  .calendar-create-actions { grid-template-columns: 1fr; }
+}
 </style>

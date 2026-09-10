@@ -131,6 +131,10 @@ function getExcepciones() {
     // Formatear fechas como string YYYY-MM-DD
     data.forEach(function(exc) {
       exc.Fecha = app_normalizarFecha(exc.Fecha);
+      if (exc.Hora_Inicio_1) exc.Hora_Inicio_1 = formatTimeValue(exc.Hora_Inicio_1);
+      if (exc.Hora_Fin_1) exc.Hora_Fin_1 = formatTimeValue(exc.Hora_Fin_1);
+      if (exc.Hora_Inicio_2) exc.Hora_Inicio_2 = formatTimeValue(exc.Hora_Inicio_2);
+      if (exc.Hora_Fin_2) exc.Hora_Fin_2 = formatTimeValue(exc.Hora_Fin_2);
     });
     return data;
   } catch (e) {
@@ -143,6 +147,26 @@ function getExcepciones() {
  */
 function addExcepcion(excData) {
   try {
+    if (!excData || !/^\d{4}-\d{2}-\d{2}$/.test(excData.Fecha || '')) {
+      return { success: false, message: 'La fecha no es válida.' };
+    }
+
+    var tiposValidos = ['cerrado', 'bloqueo', 'especial'];
+    if (tiposValidos.indexOf(excData.Tipo) === -1) {
+      return { success: false, message: 'El tipo de excepción no es válido.' };
+    }
+
+    if (excData.Tipo === 'bloqueo' || excData.Tipo === 'especial') {
+      excData.Hora_Inicio_1 = formatTimeValue(excData.Hora_Inicio_1);
+      excData.Hora_Fin_1 = formatTimeValue(excData.Hora_Fin_1);
+      if (timeToMinutes(excData.Hora_Inicio_1) >= timeToMinutes(excData.Hora_Fin_1)) {
+        return { success: false, message: 'La hora de fin debe ser posterior a la de inicio.' };
+      }
+    } else {
+      excData.Hora_Inicio_1 = '';
+      excData.Hora_Fin_1 = '';
+    }
+
     insertRowData(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_EXCEPCIONES, excData);
     return { success: true };
   } catch (e) {
@@ -159,6 +183,26 @@ function deleteExcepcion(rowIndex) {
     return { success: true };
   } catch (e) {
     return { error: e.toString() };
+  }
+}
+
+/** Actualiza una excepción existente (usado por el calendario interactivo). */
+function updateExcepcion(rowIndex, excData) {
+  try {
+    if (!rowIndex || !excData || !/^\d{4}-\d{2}-\d{2}$/.test(excData.Fecha || '')) {
+      return { success: false, message: 'Datos de bloqueo no válidos.' };
+    }
+    if (excData.Tipo === 'bloqueo' || excData.Tipo === 'especial') {
+      excData.Hora_Inicio_1 = formatTimeValue(excData.Hora_Inicio_1);
+      excData.Hora_Fin_1 = formatTimeValue(excData.Hora_Fin_1);
+      if (timeToMinutes(excData.Hora_Inicio_1) >= timeToMinutes(excData.Hora_Fin_1)) {
+        return { success: false, message: 'La hora de fin debe ser posterior a la de inicio.' };
+      }
+    }
+    updateRowData(CONFIG.SPREADSHEET_ID, CONFIG.SHEET_EXCEPCIONES, Number(rowIndex), excData);
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e.toString() };
   }
 }
 

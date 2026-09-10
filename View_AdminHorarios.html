@@ -87,18 +87,19 @@
       <label>Tipo</label>
       <select id="exc-tipo" class="form-control" onchange="admin.toggleExcTipo()">
         <option value="cerrado">Cerrado todo el día</option>
-        <option value="especial">Horario especial</option>
+        <option value="bloqueo">Bloquear unas horas</option>
+        <option value="especial">Definir horario disponible especial</option>
       </select>
     </div>
 
     <div id="exc-horario-especial" style="display: none;">
       <div class="form-row">
         <div class="form-group">
-          <label>Hora inicio</label>
+          <label id="exc-hora-inicio-label">Hora inicio</label>
           <input type="time" id="exc-hora-inicio" class="form-control" step="900">
         </div>
         <div class="form-group">
-          <label>Hora fin</label>
+          <label id="exc-hora-fin-label">Hora fin</label>
           <input type="time" id="exc-hora-fin" class="form-control" step="900">
         </div>
       </div>

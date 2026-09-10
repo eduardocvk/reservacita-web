@@ -12,7 +12,6 @@ function doGet(e) {
   var params = (e && e.parameter) ? e.parameter : {};
 
   // ─── Ruta: Panel de Administración ───
-    return HtmlService.createHtmlOutput('El panel de administración se ha trasladado a un acceso privado.');
   if (params.admin === 'true') {
     var adminTemplate = HtmlService.createTemplateFromFile('Index_Admin');
     return adminTemplate.evaluate()
@@ -89,6 +88,7 @@ function doPost(e) {
       'saveHorarios': { fn: saveHorarios, admin: true },
       'getExcepciones': { fn: getExcepciones, admin: true },
       'addExcepcion': { fn: addExcepcion, admin: true },
+      'updateExcepcion': { fn: updateExcepcion, admin: true },
       'deleteExcepcion': { fn: deleteExcepcion, admin: true },
       'bloquearRangoFechas': { fn: bloquearRangoFechas, admin: true },
       'getServicios': { fn: getServicios, admin: true },

@@ -14,7 +14,9 @@ const admin = {
     clientes: [],
     config: {},
     stats: {},
-    calendarWeekOffset: 0
+    calendarWeekOffset: 0,
+    calendar: null,
+    pendingCalendarSelection: null
   },
   currentClienteEmail: null,
 
@@ -243,18 +245,21 @@ const admin = {
         this.renderWeeklyCalendar();
       }
     }).catch(() => {});
+
+    app.fetchData('getExcepciones').then(excepciones => {
+      this.state.excepciones = excepciones || [];
+      if (this.state.citas) this.renderWeeklyCalendar();
+    }).catch(() => {});
   },
 
   changeCalendarWeek: function(delta) {
-    if (delta === 0) {
-      this.state.calendarWeekOffset = 0;
-    } else {
-      this.state.calendarWeekOffset += delta;
-    }
-    this.renderWeeklyCalendar();
+    if (!this.state.calendar) return;
+    if (delta === 0) this.state.calendar.today();
+    else if (delta < 0) this.state.calendar.prev();
+    else this.state.calendar.next();
   },
 
-  renderWeeklyCalendar: function() {
+  renderLegacyWeeklyCalendar: function() {
     var grid = document.getElementById('weekly-calendar-grid');
     var headerEl = document.getElementById('weekly-calendar-header');
     if (!grid || !headerEl) return;
@@ -402,6 +407,218 @@ const admin = {
     }
 
     grid.innerHTML = html;
+  },
+
+  renderWeeklyCalendar: function() {
+    var calendarEl = document.getElementById('weekly-calendar-grid');
+    if (!calendarEl || typeof FullCalendar === 'undefined') return;
+
+    var events = this.getCalendarEvents();
+    var businessHours = this.getCalendarBusinessHours();
+    var slotBounds = this.getCalendarSlotBounds();
+
+    if (!this.state.calendar) {
+      this.state.calendar = new FullCalendar.Calendar(calendarEl, {
+        locale: 'es',
+        initialView: 'timeGridWeek',
+        firstDay: 1,
+        nowIndicator: true,
+        allDaySlot: false,
+        height: 'auto',
+        expandRows: true,
+        selectable: true,
+        selectMirror: true,
+        editable: true,
+        eventResizableFromStart: true,
+        slotDuration: '00:15:00',
+        snapDuration: '00:15:00',
+        slotMinTime: slotBounds.min,
+        slotMaxTime: slotBounds.max,
+        businessHours: businessHours,
+        headerToolbar: {
+          left: 'prev,next today',
+          center: 'title',
+          right: 'timeGridWeek,timeGridDay'
+        },
+        buttonText: { today: 'Hoy', week: 'Semana', day: 'Día' },
+        select: function(info) { admin.openCalendarCreate(info); },
+        eventClick: function(info) { admin.handleCalendarEventClick(info); },
+        eventDrop: function(info) { admin.persistCalendarEvent(info); },
+        eventResize: function(info) { admin.persistCalendarEvent(info); },
+        eventDidMount: function(info) {
+          info.el.title = info.event.extendedProps.tooltip || info.event.title;
+        }
+      });
+      this.state.calendar.render();
+    } else {
+      this.state.calendar.setOption('businessHours', businessHours);
+      this.state.calendar.setOption('slotMinTime', slotBounds.min);
+      this.state.calendar.setOption('slotMaxTime', slotBounds.max);
+      this.state.calendar.removeAllEvents();
+    }
+    this.state.calendar.addEventSource(events);
+  },
+
+  getCalendarEvents: function() {
+    var citas = this.state.todasCitas || this.state.citas || [];
+    var events = citas.filter(function(c) { return c.Estado !== 'cancelada'; }).map(function(c) {
+      return {
+        id: 'cita-' + c.ID,
+        title: (c.Hora_Inicio || '') + ' · ' + (c.Cliente_Nombre || 'Cita'),
+        start: c.Fecha + 'T' + (c.Hora_Inicio || '00:00') + ':00',
+        end: c.Fecha + 'T' + (c.Hora_Fin || c.Hora_Inicio || '00:00') + ':00',
+        backgroundColor: c.Tipo === 'domicilio' ? '#457b9d' : '#2a9d8f',
+        borderColor: c.Tipo === 'domicilio' ? '#457b9d' : '#2a9d8f',
+        extendedProps: {
+          kind: 'appointment',
+          record: c,
+          tooltip: (c.Cliente_Nombre || 'Cita') + ' · ' + (c.servicio_nombre || '')
+        }
+      };
+    });
+
+    (this.state.excepciones || []).filter(function(exc) {
+      return exc.Tipo === 'bloqueo' && exc.Hora_Inicio_1 && exc.Hora_Fin_1;
+    }).forEach(function(exc) {
+      events.push({
+        id: 'bloqueo-' + exc._rowIndex,
+        title: exc.Motivo || 'Bloqueado',
+        start: exc.Fecha + 'T' + exc.Hora_Inicio_1 + ':00',
+        end: exc.Fecha + 'T' + exc.Hora_Fin_1 + ':00',
+        classNames: ['calendar-event-block'],
+        extendedProps: {
+          kind: 'block',
+          record: exc,
+          tooltip: 'Bloqueo · ' + (exc.Motivo || 'Sin motivo')
+        }
+      });
+    });
+    return events;
+  },
+
+  getCalendarBusinessHours: function() {
+    var dayMap = { 'Domingo': 0, 'Lunes': 1, 'Martes': 2, 'Miércoles': 3, 'Jueves': 4, 'Viernes': 5, 'Sábado': 6 };
+    var result = [];
+    (this.state.horarios || []).forEach(function(h) {
+      if (!(h.Abierto === true || h.Abierto === 'TRUE')) return;
+      [[h.Hora_Inicio_1, h.Hora_Fin_1], [h.Hora_Inicio_2, h.Hora_Fin_2]].forEach(function(rango) {
+        if (rango[0] && rango[1] && rango[0] !== rango[1]) {
+          result.push({ daysOfWeek: [dayMap[h.Dia]], startTime: rango[0], endTime: rango[1] });
+        }
+      });
+    });
+    return result;
+  },
+
+  getCalendarSlotBounds: function() {
+    var starts = [], ends = [];
+    (this.state.horarios || []).forEach(function(h) {
+      if (h.Hora_Inicio_1 && h.Hora_Inicio_1 !== '00:00') starts.push(h.Hora_Inicio_1);
+      if (h.Hora_Inicio_2 && h.Hora_Inicio_2 !== '00:00') starts.push(h.Hora_Inicio_2);
+      if (h.Hora_Fin_1 && h.Hora_Fin_1 !== '00:00') ends.push(h.Hora_Fin_1);
+      if (h.Hora_Fin_2 && h.Hora_Fin_2 !== '00:00') ends.push(h.Hora_Fin_2);
+    });
+    var minHour = starts.length ? Math.max(0, parseInt(starts.sort()[0].split(':')[0]) - 1) : 7;
+    var maxHour = ends.length ? Math.min(24, parseInt(ends.sort().reverse()[0].split(':')[0]) + 2) : 22;
+    return { min: String(minHour).padStart(2, '0') + ':00:00', max: String(maxHour).padStart(2, '0') + ':00:00' };
+  },
+
+  calendarDateString: function(date) {
+    return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+  },
+
+  calendarTimeString: function(date) {
+    return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
+  },
+
+  openCalendarCreate: function(info) {
+    if (info.allDay) return;
+    this.state.pendingCalendarSelection = { start: new Date(info.start), end: new Date(info.end) };
+    document.getElementById('calendar-selection-summary').textContent =
+      app.formatDateShort(this.calendarDateString(info.start)) + ' · ' +
+      this.calendarTimeString(info.start) + '–' + this.calendarTimeString(info.end);
+    app.openModal('modal-calendar-create');
+  },
+
+  cancelCalendarCreate: function() {
+    app.closeModal('modal-calendar-create');
+    if (this.state.calendar) this.state.calendar.unselect();
+    this.state.pendingCalendarSelection = null;
+  },
+
+  createAppointmentFromCalendar: function() {
+    var selection = this.state.pendingCalendarSelection;
+    if (!selection) return;
+    this.cancelCalendarCreate();
+    this.openNewCitaModal();
+    document.getElementById('new-cita-fecha').value = this.calendarDateString(selection.start);
+    document.getElementById('new-cita-hora').value = this.calendarTimeString(selection.start);
+  },
+
+  createBlockFromCalendar: function() {
+    var selection = this.state.pendingCalendarSelection;
+    if (!selection) return;
+    this.cancelCalendarCreate();
+    this.openExcepcionModal();
+    document.getElementById('exc-fecha').value = this.calendarDateString(selection.start);
+    document.getElementById('exc-tipo').value = 'bloqueo';
+    document.getElementById('exc-hora-inicio').value = this.calendarTimeString(selection.start);
+    document.getElementById('exc-hora-fin').value = this.calendarTimeString(selection.end);
+    this.toggleExcTipo();
+  },
+
+  handleCalendarEventClick: function(info) {
+    var props = info.event.extendedProps;
+    if (props.kind === 'appointment') {
+      this.showDetalleCita(props.record);
+      return;
+    }
+    this.navigate('horarios', document.querySelector('.nav-item:nth-child(3)'));
+    app.showToast('Puedes eliminar este bloqueo en la lista de excepciones', 'info');
+  },
+
+  persistCalendarEvent: function(info) {
+    var event = info.event;
+    var props = event.extendedProps;
+    if (!event.start || !event.end) { info.revert(); return; }
+
+    var fecha = this.calendarDateString(event.start);
+    var horaInicio = this.calendarTimeString(event.start);
+    var horaFin = this.calendarTimeString(event.end);
+    app.showLoader('Guardando cambio...');
+
+    var request;
+    if (props.kind === 'appointment') {
+      request = app.fetchData('modificarReservaAdmin', {
+        ID: props.record.ID,
+        fecha: fecha,
+        hora: horaInicio,
+        hora_fin: horaFin
+      });
+    } else {
+      var updated = Object.assign({}, props.record, {
+        Fecha: fecha,
+        Hora_Inicio_1: horaInicio,
+        Hora_Fin_1: horaFin
+      });
+      delete updated._rowIndex;
+      request = app.fetchData('updateExcepcion', props.record._rowIndex, updated);
+    }
+
+    request.then(function(result) {
+      app.hideLoader();
+      if (!result || !result.success) {
+        info.revert();
+        app.showToast((result && result.message) || 'No se pudo guardar el cambio', 'error');
+        return;
+      }
+      app.showToast('Calendario actualizado', 'success');
+      admin.refreshDashboard();
+    }).catch(function() {
+      app.hideLoader();
+      info.revert();
+      app.showToast('Error de conexión; se ha deshecho el cambio', 'error');
+    });
   },
 
   renderProximasCitas: function() {
@@ -857,8 +1074,12 @@ const admin = {
     excs.forEach(exc => {
       var tipoBadge = exc.Tipo === 'cerrado'
         ? '<span class="badge badge-danger">Cerrado</span>'
-        : '<span class="badge badge-warning">Especial</span>';
-      var horario = exc.Tipo === 'especial' ? (exc.Hora_Inicio_1 || '') + ' - ' + (exc.Hora_Fin_1 || '') : '—';
+        : exc.Tipo === 'bloqueo'
+          ? '<span class="badge badge-danger">Bloqueo parcial</span>'
+          : '<span class="badge badge-warning">Horario especial</span>';
+      var horario = exc.Tipo === 'especial' || exc.Tipo === 'bloqueo'
+        ? (exc.Hora_Inicio_1 || '') + ' - ' + (exc.Hora_Fin_1 || '')
+        : '—';
 
       html += '<tr>' +
         '<td>' + app.formatDateShort(exc.Fecha) + '</td>' +
@@ -884,7 +1105,10 @@ const admin = {
 
   toggleExcTipo: function() {
     var tipo = document.getElementById('exc-tipo').value;
-    document.getElementById('exc-horario-especial').style.display = tipo === 'especial' ? 'block' : 'none';
+    var usaHoras = tipo === 'especial' || tipo === 'bloqueo';
+    document.getElementById('exc-horario-especial').style.display = usaHoras ? 'block' : 'none';
+    document.getElementById('exc-hora-inicio-label').textContent = tipo === 'bloqueo' ? 'Bloquear desde' : 'Disponible desde';
+    document.getElementById('exc-hora-fin-label').textContent = tipo === 'bloqueo' ? 'Bloquear hasta' : 'Disponible hasta';
   },
 
   saveExcepcion: function() {
@@ -901,6 +1125,15 @@ const admin = {
       Motivo: document.getElementById('exc-motivo').value
     };
 
+    if ((data.Tipo === 'bloqueo' || data.Tipo === 'especial') && (!data.Hora_Inicio_1 || !data.Hora_Fin_1)) {
+      app.showToast('Indica la hora de inicio y de fin', 'warning');
+      return;
+    }
+    if (data.Hora_Inicio_1 && data.Hora_Fin_1 && data.Hora_Inicio_1 >= data.Hora_Fin_1) {
+      app.showToast('La hora de fin debe ser posterior a la de inicio', 'warning');
+      return;
+    }
+
     app.showLoader('Guardando...');
     app.fetchData('addExcepcion', data).then(result => {
       app.hideLoader();
@@ -909,7 +1142,7 @@ const admin = {
         app.showToast('Excepción añadida', 'success');
         this.loadHorarios();
       } else {
-        app.showToast('Error', 'error');
+        app.showToast((result && result.message) || 'Error', 'error');
       }
     }).catch(err => { app.hideLoader(); app.showToast('Error', 'error'); });
   },
