@@ -1,5 +1,5 @@
 // Service Worker para ReservaCita Admin PWA
-const CACHE_NAME = 'reservacita-admin-v4';
+const CACHE_NAME = 'reservacita-admin-v5';
 const ASSETS_TO_CACHE = [
   './admin.html',
   './admin-manifest.json',
