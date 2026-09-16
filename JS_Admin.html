@@ -1052,6 +1052,9 @@ const admin = {
       this.state.excepciones = excepciones || [];
       this.renderHorarios();
       this.renderExcepciones();
+      // Los bloqueos también se crean desde el calendario del dashboard.
+      // Si el calendario ya existe, actualizarlo sin obligar a cambiar de vista.
+      if (this.state.calendar) this.renderWeeklyCalendar();
       app.hideLoader();
     }).catch(err => {
       console.error(err);

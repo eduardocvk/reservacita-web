@@ -68,57 +68,6 @@
   </div>
 </div>
 
-<!-- Modal: Nueva Excepción -->
-<div class="modal-overlay" id="modal-excepcion">
-  <div class="modal-content" style="max-width: 480px;">
-    <div class="modal-header">
-      <h3 class="modal-title"><i class="ri-calendar-close-line text-primary"></i> Nueva excepción</h3>
-      <button class="modal-close" onclick="app.closeModal('modal-excepcion')">
-        <i class="ri-close-line"></i>
-      </button>
-    </div>
-
-    <div class="form-group">
-      <label>Fecha <span class="required">*</span></label>
-      <input type="date" id="exc-fecha" class="form-control">
-    </div>
-
-    <div class="form-group">
-      <label>Tipo</label>
-      <select id="exc-tipo" class="form-control" onchange="admin.toggleExcTipo()">
-        <option value="cerrado">Cerrado todo el día</option>
-        <option value="bloqueo">Bloquear unas horas</option>
-        <option value="especial">Definir horario disponible especial</option>
-      </select>
-    </div>
-
-    <div id="exc-horario-especial" style="display: none;">
-      <div class="form-row">
-        <div class="form-group">
-          <label id="exc-hora-inicio-label">Hora inicio</label>
-          <input type="time" id="exc-hora-inicio" class="form-control" step="900">
-        </div>
-        <div class="form-group">
-          <label id="exc-hora-fin-label">Hora fin</label>
-          <input type="time" id="exc-hora-fin" class="form-control" step="900">
-        </div>
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label>Motivo</label>
-      <input type="text" id="exc-motivo" class="form-control" placeholder="Ej: Vacaciones, festivo...">
-    </div>
-
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="app.closeModal('modal-excepcion')">Cancelar</button>
-      <button class="btn btn-primary" onclick="admin.saveExcepcion()">
-        <i class="ri-check-line"></i> Guardar
-      </button>
-    </div>
-  </div>
-</div>
-
 <!-- Modal: Bloquear Rango de Fechas -->
 <div class="modal-overlay" id="modal-bloqueo-rango">
   <div class="modal-content" style="max-width: 440px;">
